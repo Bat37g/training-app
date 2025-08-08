@@ -3,7 +3,8 @@ import {
     getAuth, 
     signInWithEmailAndPassword, 
     onAuthStateChanged, 
-    signOut 
+    signOut,
+    createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -68,7 +69,7 @@ const EXERCISES = [
 // Composant pour le menu burger
 const BurgerMenu = ({ currentUser, handleLogout, players }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const currentPlayer = players.find(p => p.name === currentUser?.displayName);
+    const currentPlayer = players.find(p => p.email === currentUser?.email);
     const totalPoints = currentPlayer ? currentPlayer.totalPoints : 0;
     const progress = Math.min((totalPoints / 200) * 100, 100);
 
@@ -83,7 +84,7 @@ const BurgerMenu = ({ currentUser, handleLogout, players }) => {
                 <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
                     <div className="py-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                         <div className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700 font-semibold">
-                            {currentUser.displayName || `Utilisateur #${currentUser.uid.substring(0, 4)}...`}
+                            {currentPlayer?.name || currentUser.email}
                             <div className="mt-2 text-xs text-gray-400">Progression : {totalPoints.toFixed(1)}/200 pts</div>
                             <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
                                 <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
@@ -110,18 +111,17 @@ const BurgerMenu = ({ currentUser, handleLogout, players }) => {
 const App = () => {
     const [players, setPlayers] = useState([]);
     const [selectedPlayer, setSelectedPlayer] = useState(null);
-    const [newPlayerName, setNewPlayerName] = useState('');
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
 
-    // Initialisation de l'authentification anonyme
+    // Initialisation de l'authentification
     useEffect(() => {
         if (!isFirebaseConnected || !auth) {
             console.error("Firebase n'est pas connecté. L'application ne fonctionnera pas correctement.");
             return;
         }
 
-        const unsub = onAuthStateChanged(auth, async (user) => {
+        const unsub = onAuthStateChanged(auth, (user) => {
             setCurrentUser(user);
             setIsAuthReady(true);
         });
@@ -153,24 +153,6 @@ const App = () => {
             return () => unsub();
         }
     }, [isAuthReady, isFirebaseConnected, db, selectedPlayer]);
-
-    // Fonctions CRUD pour les joueurs et activités
-    const addPlayer = async () => {
-        if (newPlayerName.trim() === '') return;
-        if (!isFirebaseConnected || !currentUser) return;
-
-        const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
-        try {
-            await setDoc(doc(playersRef), {
-                name: newPlayerName,
-                activities: [],
-                totalPoints: 0
-            });
-            setNewPlayerName('');
-        } catch (e) {
-            console.error("Erreur lors de l'ajout du joueur:", e);
-        }
-    };
 
     const addActivity = async (playerId, activity) => {
         if (!isFirebaseConnected || !currentUser) return;
@@ -229,7 +211,6 @@ const App = () => {
         if (isFirebaseConnected && auth) {
             try {
                 await signOut(auth);
-                // Réinitialiser l'état de l'utilisateur pour forcer le rendu de la page de connexion
                 setCurrentUser(null);
                 setSelectedPlayer(null);
             } catch (error) {
@@ -244,6 +225,7 @@ const App = () => {
         const [password, setPassword] = useState('');
         const [error, setError] = useState('');
         const [loading, setLoading] = useState(false);
+        const [isRegistering, setIsRegistering] = useState(false);
 
         const handleLogin = async (e) => {
             e.preventDefault();
@@ -259,40 +241,125 @@ const App = () => {
             }
         };
 
+        const handleRegister = async (e) => {
+            e.preventDefault();
+            setError('');
+            setLoading(true);
+            const playerName = e.target.playerName.value.trim();
+            if (playerName === '') {
+                setError("Veuillez entrer un nom de joueur.");
+                setLoading(false);
+                return;
+            }
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                // Ajouter le joueur à la collection `players`
+                const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
+                await setDoc(doc(playersRef), {
+                    name: playerName,
+                    email: user.email,
+                    activities: [],
+                    totalPoints: 0
+                });
+                setLoading(false);
+            } catch (err) {
+                console.error("Erreur d'inscription:", err);
+                setError(err.message || "Une erreur est survenue lors de l'inscription.");
+                setLoading(false);
+            }
+        };
+
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-950 p-4">
                 <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-gray-700">
-                    <h2 className="text-3xl font-bold text-orange-400 mb-6 text-center">Connexion</h2>
-                    <form onSubmit={handleLogin} className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                required
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Mot de passe</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                required
-                            />
-                        </div>
-                        {error && <p className="text-red-400 text-sm text-center">{error}</p>}
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors disabled:opacity-50"
-                        >
-                            {loading ? 'Connexion...' : 'Se connecter'}
-                        </button>
-                    </form>
+                    <h2 className="text-3xl font-bold text-orange-400 mb-6 text-center">{isRegistering ? 'Inscription' : 'Connexion'}</h2>
+                    {isRegistering ? (
+                        <form onSubmit={handleRegister} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Nom du joueur</label>
+                                <input
+                                    type="text"
+                                    name="playerName"
+                                    className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Mot de passe</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                />
+                            </div>
+                            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors disabled:opacity-50"
+                            >
+                                {loading ? 'Inscription...' : 'Créer un compte'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsRegistering(false)}
+                                className="w-full p-3 mt-4 text-gray-400 hover:text-orange-400 transition-colors"
+                            >
+                                Retour à la connexion
+                            </button>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-1">Mot de passe</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                    required
+                                />
+                            </div>
+                            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors disabled:opacity-50"
+                            >
+                                {loading ? 'Connexion...' : 'Se connecter'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsRegistering(true)}
+                                className="w-full p-3 mt-4 text-gray-400 hover:text-orange-400 transition-colors"
+                            >
+                                Créer un compte
+                            </button>
+                        </form>
+                    )}
                 </div>
             </div>
         );
@@ -525,7 +592,6 @@ const App = () => {
 
     const renderMainContent = () => {
         if (!isAuthReady) {
-            // Écran de chargement initial de l'authentification
             return (
                 <div className="flex flex-col items-center justify-center min-h-screen text-center p-8">
                     <h2 className="text-3xl font-bold text-orange-400 mb-4">Bienvenue !</h2>
@@ -536,7 +602,6 @@ const App = () => {
         }
 
         if (!currentUser) {
-            // Écran de connexion si aucun utilisateur n'est connecté
             return <LoginScreen />;
         }
 
@@ -544,49 +609,70 @@ const App = () => {
             return <PlayerDetails player={selectedPlayer} onBack={() => setSelectedPlayer(null)} />;
         }
 
-        // Écran principal avec classement et ajout de joueur
+        const currentPlayer = players.find(p => p.email === currentUser.email);
+
         return (
             <>
-                {/* Section d'ajout de joueur */}
-                <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
-                    <h2 className="text-2xl font-bold text-orange-400 mb-4">Ajouter un joueur</h2>
-                    <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
-                        <input
-                            type="text"
-                            value={newPlayerName}
-                            onChange={(e) => setNewPlayerName(e.target.value)}
-                            placeholder="Nom du joueur"
-                            className="flex-grow p-3 bg-gray-800 text-white rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                        <button
-                            onClick={addPlayer}
-                            className="p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200"
-                        >
-                            Ajouter
-                        </button>
+                {/* Section d'ajout de joueur, visible uniquement pour les joueurs non enregistrés */}
+                {!currentPlayer && (
+                    <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
+                        <h2 className="text-2xl font-bold text-orange-400 mb-4">Ajouter votre nom de joueur</h2>
+                        <p className="text-gray-300 mb-4">Votre compte n'est pas encore associé à un nom de joueur. Veuillez en créer un ci-dessous.</p>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const playerName = e.target.playerName.value.trim();
+                            if (playerName === '') return;
+                            const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
+                            try {
+                                await setDoc(doc(playersRef), {
+                                    name: playerName,
+                                    email: currentUser.email,
+                                    activities: [],
+                                    totalPoints: 0
+                                });
+                            } catch (error) {
+                                console.error("Erreur lors de l'ajout du joueur:", error);
+                            }
+                        }} className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                            <input
+                                type="text"
+                                name="playerName"
+                                placeholder="Nom du joueur"
+                                className="flex-grow p-3 bg-gray-800 text-white rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                required
+                            />
+                            <button
+                                type="submit"
+                                className="p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200"
+                            >
+                                Ajouter mon nom
+                            </button>
+                        </form>
                     </div>
-                </div>
-
-                {/* Classement des joueurs */}
-                <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                    <h2 className="text-2xl font-bold text-orange-400 mb-4">Classement des joueurs</h2>
-                    <ul className="space-y-4">
-                        {players.map((player, index) => (
-                            <li key={player.id}>
-                                <button
-                                    onClick={() => setSelectedPlayer(player)}
-                                    className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between"
-                                >
-                                    <div className="flex items-center space-x-4">
-                                        <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
-                                        <span className="text-lg font-semibold text-white">{player.name}</span>
-                                    </div>
-                                    <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                )}
+                
+                {/* Classement des joueurs, visible uniquement si le joueur est enregistré */}
+                {currentPlayer && (
+                    <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
+                        <h2 className="text-2xl font-bold text-orange-400 mb-4">Classement des joueurs</h2>
+                        <ul className="space-y-4">
+                            {players.map((player, index) => (
+                                <li key={player.id}>
+                                    <button
+                                        onClick={() => setSelectedPlayer(player)}
+                                        className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between"
+                                    >
+                                        <div className="flex items-center space-x-4">
+                                            <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
+                                            <span className="text-lg font-semibold text-white">{player.name}</span>
+                                        </div>
+                                        <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             </>
         );
     };
@@ -608,13 +694,13 @@ const App = () => {
                 </div>
                 {/* Message de bienvenue et menu burger alignés à droite */}
                 <div className="flex items-center space-x-4">
-                    {currentUser && players.some(p => p.name === currentUser.displayName) && (
+                    {currentUser && players.find(p => p.email === currentUser.email) && (
                         <div className="text-right hidden md:block">
                             <p className="text-sm text-gray-300">Bonjour,</p>
-                            <p className="text-xl font-bold text-orange-400">{currentUser.displayName || 'Utilisateur'}</p>
-                            <div className="mt-2 text-xs text-gray-400">Progression : {players.find(p => p.name === currentUser.displayName)?.totalPoints.toFixed(1) || 0}/200 pts</div>
+                            <p className="text-xl font-bold text-orange-400">{players.find(p => p.email === currentUser.email)?.name || 'Utilisateur'}</p>
+                            <div className="mt-2 text-xs text-gray-400">Progression : {players.find(p => p.email === currentUser.email)?.totalPoints.toFixed(1) || 0}/200 pts</div>
                             <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
-                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.name === currentUser.displayName)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
+                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.email === currentUser.email)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                     )}
@@ -627,7 +713,7 @@ const App = () => {
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.5.0</p>
+                <p>Version 3.6.0</p>
             </footer>
         </div>
     );
