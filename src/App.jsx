@@ -127,7 +127,6 @@ const App = () => {
             } else {
                 try {
                     await signInAnonymously(auth);
-                    setCurrentUser(null);
                 } catch (error) {
                     console.error("Erreur lors de l'authentification anonyme:", error);
                 }
@@ -238,8 +237,9 @@ const App = () => {
         if (isFirebaseConnected && auth) {
             try {
                 await signOut(auth);
-                // Utilisation de la redirection vers la racine de l'application
-                window.location.href = window.location.origin;
+                // Réinitialiser l'état de l'utilisateur pour forcer le rendu de la page de connexion
+                setCurrentUser(null);
+                setSelectedPlayer(null);
             } catch (error) {
                 console.error("Erreur lors de la déconnexion:", error);
             }
@@ -471,6 +471,69 @@ const App = () => {
         );
     };
 
+    const renderMainContent = () => {
+        if (!currentUser) {
+            // Écran de connexion/chargement
+            return (
+                <div className="flex flex-col items-center justify-center text-center p-8">
+                    <h2 className="text-3xl font-bold text-orange-400 mb-4">Bienvenue !</h2>
+                    <p className="text-lg text-gray-300">Veuillez patienter pendant que nous vous connectons...</p>
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mt-6"></div>
+                </div>
+            );
+        }
+
+        if (selectedPlayer) {
+            return <PlayerDetails player={selectedPlayer} onBack={() => setSelectedPlayer(null)} />;
+        }
+
+        // Écran principal avec classement et ajout de joueur
+        return (
+            <>
+                {/* Section d'ajout de joueur */}
+                <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
+                    <h2 className="text-2xl font-bold text-orange-400 mb-4">Ajouter un joueur</h2>
+                    <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                        <input
+                            type="text"
+                            value={newPlayerName}
+                            onChange={(e) => setNewPlayerName(e.target.value)}
+                            placeholder="Nom du joueur"
+                            className="flex-grow p-3 bg-gray-800 text-white rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                        <button
+                            onClick={addPlayer}
+                            className="p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200"
+                        >
+                            Ajouter
+                        </button>
+                    </div>
+                </div>
+
+                {/* Classement des joueurs */}
+                <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
+                    <h2 className="text-2xl font-bold text-orange-400 mb-4">Classement des joueurs</h2>
+                    <ul className="space-y-4">
+                        {players.map((player, index) => (
+                            <li key={player.id}>
+                                <button
+                                    onClick={() => setSelectedPlayer(player)}
+                                    className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between"
+                                >
+                                    <div className="flex items-center space-x-4">
+                                        <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
+                                        <span className="text-lg font-semibold text-white">{player.name}</span>
+                                    </div>
+                                    <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </>
+        );
+    };
+
     return (
         <div className="min-h-screen bg-gray-950 text-gray-200 font-sans p-4 md:p-8">
             <header className="flex items-center justify-between flex-wrap gap-4 mb-8">
@@ -503,56 +566,11 @@ const App = () => {
             </header>
 
             <div className="max-w-7xl mx-auto">
-                {selectedPlayer ? (
-                    <PlayerDetails player={selectedPlayer} onBack={() => setSelectedPlayer(null)} />
-                ) : (
-                    <>
-                        {/* Section d'ajout de joueur */}
-                        <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
-                            <h2 className="text-2xl font-bold text-orange-400 mb-4">Ajouter un joueur</h2>
-                            <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
-                                <input
-                                    type="text"
-                                    value={newPlayerName}
-                                    onChange={(e) => setNewPlayerName(e.target.value)}
-                                    placeholder="Nom du joueur"
-                                    className="flex-grow p-3 bg-gray-800 text-white rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                />
-                                <button
-                                    onClick={addPlayer}
-                                    className="p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200"
-                                >
-                                    Ajouter
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Classement des joueurs */}
-                        <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                            <h2 className="text-2xl font-bold text-orange-400 mb-4">Classement des joueurs</h2>
-                            <ul className="space-y-4">
-                                {players.map((player, index) => (
-                                    <li key={player.id}>
-                                        <button
-                                            onClick={() => setSelectedPlayer(player)}
-                                            className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between"
-                                        >
-                                            <div className="flex items-center space-x-4">
-                                                <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
-                                                <span className="text-lg font-semibold text-white">{player.name}</span>
-                                            </div>
-                                            <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </>
-                )}
+                {renderMainContent()}
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.4.0</p>
+                <p>Version 3.5.0</p>
             </footer>
         </div>
     );
