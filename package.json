@@ -3,7 +3,6 @@
   "private": false,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://bat37g.github.io/training-app/",
   "scripts": {
     "dev": "vite",
     "build": "vite build --base=./",
