@@ -17,28 +17,34 @@ import {
     getDocs
 } from 'firebase/firestore';
 
-// Initialisation de Firebase avec les configurations fournies par l'environnement
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// Tes paramètres Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
+  authDomain: "tnt-training.firebaseapp.com",
+  projectId: "tnt-training",
+  storageBucket: "tnt-training.firebasestorage.app",
+  messagingSenderId: "791420900421",
+  appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
+  measurementId: "G-B74Q9T0KMB"
+};
+
+const appId = "1:791420900421:web:deb9dffb55ef1b3febff2c"; // Utiliser l'appId de ta configuration
 
 let app;
 let db;
 let auth;
 let isFirebaseConnected = false;
 
-if (Object.keys(firebaseConfig).length > 0) {
-  try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-    isFirebaseConnected = true;
-    console.log("Firebase a été initialisé avec succès.");
-  } catch (e) {
-    console.error("Erreur lors de l'initialisation de Firebase:", e);
-  }
-} else {
-  console.error("La configuration Firebase est manquante. L'application fonctionnera en mode local (non-persistant).");
+try {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+  isFirebaseConnected = true;
+  console.log("Firebase a été initialisé avec succès.");
+} catch (e) {
+  console.error("Erreur lors de l'initialisation de Firebase:", e);
 }
+
 
 const EXERCISES = [
   { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 3' },
