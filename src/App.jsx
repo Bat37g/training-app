@@ -1,39 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
-// Votre configuration Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
-  authDomain: "tnt-training.firebaseapp.com",
-  projectId: "tnt-training",
-  storageBucket: "tnt-training.firebasestorage.app",
-  messagingSenderId: "791420900421",
-  appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
-  measurementId: "G-B74Q9T0KMB"
-};
+// Initialisation de Firebase avec les configurations fournies par l'environnement
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// Initialisation de Firebase
 let app;
 let db;
 let auth;
 let isFirebaseConnected = false;
-const PROJECT_ID = "tnt-training";
 
-// Vérifier que la configuration est bien présente avant d'initialiser
-if (firebaseConfig.apiKey) {
+if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
     isFirebaseConnected = true;
-    console.log("Firebase a été initialisé avec succès avec la configuration Vercel.");
+    console.log("Firebase a été initialisé avec succès.");
   } catch (e) {
     console.error("Erreur lors de l'initialisation de Firebase:", e);
   }
 } else {
-  console.error("La configuration Firebase est manquante. L'application fonctionnera en mode local (non-persistant).");
+  console.error("La configuration Firebase est manquante ou le jeton d'authentification est manquant. L'application fonctionnera en mode local (non-persistant).");
 }
 
 const EXERCISES = [
@@ -85,7 +76,7 @@ const getExerciseIcon = (exerciseName) => {
 
 
 const App = () => {
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState(crypto.randomUUID()); 
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -102,14 +93,17 @@ const App = () => {
   const [deleting, setDeleting] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(isFirebaseConnected);
 
-  // Authentification anonyme au chargement de l'application
   useEffect(() => {
     if (isFirebaseConnected) {
       const initializeAuth = async () => {
         try {
-          await signInAnonymously(auth);
+          if (initialAuthToken) {
+            await signInWithCustomToken(auth, initialAuthToken);
+          } else {
+            await signInAnonymously(auth);
+          }
         } catch (error) {
-          console.error("Erreur lors de l'authentification anonyme:", error);
+          console.error("Erreur lors de l'authentification:", error);
           setIsFirebaseReady(false);
         }
       };
@@ -117,11 +111,9 @@ const App = () => {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           setUserId(user.uid);
-          setIsFirebaseReady(true);
-          console.log("Utilisateur authentifié de manière anonyme:", user.uid);
+          console.log("Utilisateur authentifié:", user.uid);
         } else {
           setUserId(null);
-          setIsFirebaseReady(false);
           console.log("Utilisateur déconnecté.");
         }
       });
@@ -129,10 +121,10 @@ const App = () => {
     }
   }, []);
 
-  // Écoute des changements de la collection de joueurs
+  // Utilisation d'un chemin de collection public pour les joueurs
   useEffect(() => {
-    if (isFirebaseReady && db) {
-      const playersCollectionPath = `artifacts/${PROJECT_ID}/public/data/players`;
+    if (isFirebaseConnected && db) {
+      const playersCollectionPath = `artifacts/${appId}/public/data/players`;
       const usersRef = collection(db, playersCollectionPath);
       const unsubscribe = onSnapshot(usersRef, (snapshot) => {
         const playersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -144,22 +136,23 @@ const App = () => {
       });
       return () => unsubscribe();
     }
-  }, [db, isFirebaseReady, selectedPlayer]);
+  }, [db, appId, selectedPlayer, isFirebaseReady]);
 
-  // Écoute des changements de la collection d'activités
+  // Utilisation d'un chemin de collection public pour les activités
   useEffect(() => {
-    if (isFirebaseReady && db && selectedPlayer) {
-      const activitiesCollectionPath = `artifacts/${PROJECT_ID}/public/data/players/${selectedPlayer.id}/activities`;
+    if (isFirebaseConnected && db && selectedPlayer) {
+      const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
       const playerActivitiesRef = collection(db, activitiesCollectionPath);
       const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
         const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setActivities(activitiesList);
       });
       return () => unsubscribe();
-    } else if (!isFirebaseReady && selectedPlayer) {
+    } else if (!isFirebaseConnected && selectedPlayer) {
+      // Logique pour le mode local (non persistant)
       setActivities([]);
     }
-  }, [db, isFirebaseReady, selectedPlayer]);
+  }, [db, appId, selectedPlayer, isFirebaseReady]);
 
 
   const calculatePoints = (activity) => {
@@ -186,12 +179,13 @@ const App = () => {
   const handleAddPlayer = async () => {
     const playerName = prompt("Entrez le nom du nouveau joueur:");
     if (playerName) {
-      if (isFirebaseReady && db) {
-        const playersCollectionPath = `artifacts/${PROJECT_ID}/public/data/players`;
+      if (isFirebaseConnected && db) {
+        const playersCollectionPath = `artifacts/${appId}/public/data/players`;
         const newPlayerRef = doc(collection(db, playersCollectionPath));
         await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
       } else {
-        alert("Erreur: Connexion à la base de données impossible.");
+        const newPlayer = { id: Date.now().toString(), name: playerName, createdAt: new Date() };
+        setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
       }
     }
   };
@@ -224,12 +218,13 @@ const App = () => {
     }
     setLoading(true);
     try {
-      if (isFirebaseReady && db && selectedPlayer) {
-        const activitiesCollectionPath = `artifacts/${PROJECT_ID}/public/data/players/${selectedPlayer.id}/activities`;
+      if (isFirebaseConnected && db && selectedPlayer) {
+        const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
         const activityRef = doc(collection(db, activitiesCollectionPath));
         await setDoc(activityRef, newActivity);
       } else {
-        alert('Erreur: Connexion à la base de données impossible.');
+        const newActivityWithId = { id: Date.now().toString(), ...newActivity };
+        setActivities(prevActivities => [...prevActivities, newActivityWithId]);
       }
       setNewActivity({ date: '', exercise: '', value: '' });
       handleCloseModal();
@@ -257,12 +252,12 @@ const App = () => {
     if (activityToDelete) {
       setDeleting(true);
       try {
-        if (isFirebaseReady && db && selectedPlayer) {
-          const activitiesCollectionPath = `artifacts/${PROJECT_ID}/public/data/players/${selectedPlayer.id}/activities`;
+        if (isFirebaseConnected && db && selectedPlayer) {
+          const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
           const activityRef = doc(db, activitiesCollectionPath, activityToDelete.id);
           await deleteDoc(activityRef);
         } else {
-          alert('Erreur: Connexion à la base de données impossible.');
+          setActivities(prevActivities => prevActivities.filter(act => act.id !== activityToDelete.id));
         }
         handleCloseDeleteConfirmation();
         setMessage('');
@@ -298,16 +293,31 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-4 font-sans">
       <div className="container mx-auto max-w-4xl">
-        <header className="text-center mb-8">
+        <header className="flex items-center justify-center p-4 mb-8 bg-gradient-to-r from-gray-900 to-gray-800 rounded-3xl shadow-2xl border border-gray-700">
+          {/* Note: Placez votre fichier image 'image_4d6343.png' dans le dossier `public` de votre projet
+                     et utilisez le chemin comme ceci : src="/image_4d6343.png" */}
+          <img
+            src="/image_4d6343.png"
+            alt="Logo TNT U12"
+            className="h-20 w-auto mr-4"
+            onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "https://placehold.co/120x80/1e293b/a1a1aa?text=TNT+Logo";
+            }}
+          />
           <h1 className="text-4xl font-extrabold text-white tracking-wider">Suivi d'activités TNT U12</h1>
-          <p className="text-gray-400 mt-2">ID Utilisateur: {userId ? userId : 'En attente...'}</p>
-          {!isFirebaseReady && (
-            <p className="text-red-400 text-sm mt-2">
-                Erreur: L'application n'est pas connectée à la base de données. Les données ne sont pas persistantes.
-            </p>
-          )}
         </header>
 
+        <div className="text-center mb-8">
+            <p className="text-gray-400 mt-2 text-sm">ID Utilisateur: {userId ? userId : 'En attente...'}</p>
+            {!isFirebaseReady && (
+                <p className="text-red-400 text-sm mt-2">
+                    Erreur: L'application n'est pas connectée à la base de données. Les données ne sont pas persistantes.
+                </p>
+            )}
+        </div>
+
+        {/* Section de gestion des joueurs */}
         <section className="mb-8 p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-teal-400">Joueurs</h2>
@@ -325,7 +335,7 @@ const App = () => {
                 onClick={() => handleSelectPlayer(player)}
                 className={`px-6 py-3 rounded-full shadow-md transition-all duration-300 ${
                   selectedPlayer && selectedPlayer.id === player.id
-                    ? 'bg-blue-600 text-white font-bold transform scale-105'
+                    ? 'bg-orange-500 text-white font-bold transform scale-105'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
@@ -335,6 +345,7 @@ const App = () => {
           </div>
         </section>
 
+        {/* Section d'activités */}
         {selectedPlayer && (
           <section className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
             <div className="flex justify-between items-center mb-4">
@@ -347,6 +358,7 @@ const App = () => {
               </button>
             </div>
 
+            {/* Affichage des points par groupe */}
             <div className="mb-6 space-y-4">
               <h3 className="text-xl font-semibold text-gray-200">Points par groupe:</h3>
               <div className="space-y-3">
@@ -362,7 +374,7 @@ const App = () => {
             <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-inner border border-gray-700">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xl font-bold text-white">Total des points</span>
-                <span className="text-3xl font-extrabold text-teal-400">{totalPoints.toFixed(1)} Pts</span>
+                <span className="text-3xl font-extrabold text-orange-400">{totalPoints.toFixed(1)} Pts</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-4">
                 <div className={`bg-gradient-to-r from-teal-400 to-cyan-500 h-4 rounded-full transition-all duration-500`} style={{ width: `${totalProgress}%` }}></div>
@@ -405,6 +417,7 @@ const App = () => {
           </section>
         )}
 
+        {/* Modal pour ajouter une activité */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
@@ -473,6 +486,7 @@ const App = () => {
           </div>
         )}
 
+        {/* Modal de confirmation de suppression */}
         {showDeleteConfirmation && (
             <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
