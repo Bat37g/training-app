@@ -66,8 +66,11 @@ const EXERCISES = [
 ];
 
 // Composant pour le menu burger
-const BurgerMenu = ({ currentUser, handleLogout }) => {
+const BurgerMenu = ({ currentUser, handleLogout, players }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const currentPlayer = players.find(p => p.name === currentUser?.displayName);
+    const totalPoints = currentPlayer ? currentPlayer.totalPoints : 0;
+    const progress = Math.min((totalPoints / 200) * 100, 100);
 
     return (
         <div className="relative">
@@ -81,6 +84,10 @@ const BurgerMenu = ({ currentUser, handleLogout }) => {
                     <div className="py-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                         <div className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700 font-semibold">
                             {currentUser.displayName || `Utilisateur #${currentUser.uid.substring(0, 4)}...`}
+                            <div className="mt-2 text-xs text-gray-400">Progression : {totalPoints.toFixed(1)}/200 pts</div>
+                            <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
+                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                            </div>
                         </div>
                         <button
                             onClick={handleLogout}
@@ -186,7 +193,12 @@ const App = () => {
         try {
             const docSnap = await getDoc(playerDocRef);
             if (docSnap.exists()) {
-                const points = (activity.quantity / EXERCISES.find(e => e.name === activity.exercise).pointsPer) * EXERCISES.find(e => e.name === activity.exercise).points;
+                const exerciseDetails = EXERCISES.find(e => e.name === activity.exercise);
+                if (!exerciseDetails) {
+                    console.error("Exercice non trouvé.");
+                    return;
+                }
+                const points = (activity.quantity / exerciseDetails.pointsPer) * exerciseDetails.points;
                 const newTotalPoints = (docSnap.data().totalPoints || 0) + points;
                 await updateDoc(playerDocRef, { totalPoints: newTotalPoints });
                 await setDoc(activityRef, {
@@ -470,12 +482,25 @@ const App = () => {
                         className="h-16 w-16 md:h-20 md:w-20"
                         onError={(e) => e.target.src = "https://placehold.co/80x80/000/FFF?text=Logo"}
                     />
-                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white">
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white hidden md:block">
                         <span className="text-orange-400">Suivi </span>
                         <span className="text-blue-400">d'entraînements</span>
                     </h1>
                 </div>
-                {currentUser && <BurgerMenu currentUser={currentUser} handleLogout={handleLogout} />}
+                {/* Message de bienvenue et menu burger alignés à droite */}
+                <div className="flex items-center space-x-4">
+                    {currentUser && players.some(p => p.name === currentUser.displayName) && (
+                        <div className="text-right hidden md:block">
+                            <p className="text-sm text-gray-300">Bonjour,</p>
+                            <p className="text-xl font-bold text-orange-400">{currentUser.displayName || 'Utilisateur'}</p>
+                            <div className="mt-2 text-xs text-gray-400">Progression : {players.find(p => p.name === currentUser.displayName)?.totalPoints.toFixed(1) || 0}/200 pts</div>
+                            <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
+                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.name === currentUser.displayName)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
+                            </div>
+                        </div>
+                    )}
+                    {currentUser && <BurgerMenu currentUser={currentUser} handleLogout={handleLogout} players={players} />}
+                </div>
             </header>
 
             <div className="max-w-7xl mx-auto">
@@ -486,7 +511,7 @@ const App = () => {
                         {/* Section d'ajout de joueur */}
                         <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
                             <h2 className="text-2xl font-bold text-blue-400 mb-4">Ajouter un joueur</h2>
-                            <div className="flex space-x-4">
+                            <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
                                 <input
                                     type="text"
                                     value={newPlayerName}
@@ -526,6 +551,10 @@ const App = () => {
                     </>
                 )}
             </div>
+            
+            <footer className="mt-8 text-center text-xs text-gray-500">
+                <p>Version 3.1.0</p>
+            </footer>
         </div>
     );
 };
