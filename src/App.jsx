@@ -14,7 +14,10 @@ import {
     collection, 
     updateDoc, 
     getDoc, 
-    deleteDoc 
+    deleteDoc,
+    getDocs,
+    query,
+    where
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 
@@ -66,8 +69,11 @@ const EXERCISES = [
   { name: 'Abdominaux', points: 2, unit: 'séries', pointsPer: 10, group: 'Groupe 3' }
 ];
 
+// L'email de l'administrateur pour la gestion des joueurs
+const ADMIN_EMAIL = 'batiste.desmarchais@gmail.com';
+
 // Composant pour le menu burger
-const BurgerMenu = ({ currentUser, handleLogout, players }) => {
+const BurgerMenu = ({ currentUser, handleLogout, players, isAdmin }) => {
     const [isOpen, setIsOpen] = useState(false);
     const currentPlayer = players.find(p => p.id === currentUser?.uid);
     const totalPoints = currentPlayer ? currentPlayer.totalPoints : 0;
@@ -84,7 +90,7 @@ const BurgerMenu = ({ currentUser, handleLogout, players }) => {
                 <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
                     <div className="py-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                         <div className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700 font-semibold">
-                            {currentPlayer?.name || currentUser.email}
+                            {currentPlayer?.name || currentUser.email} {isAdmin && <span className="text-xs text-orange-400">(Admin)</span>}
                             <div className="mt-2 text-xs text-gray-400">Progression : {totalPoints.toFixed(1)}/200 pts</div>
                             <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
                                 <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
@@ -113,6 +119,7 @@ const App = () => {
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
+    const isAdmin = currentUser && currentUser.email === ADMIN_EMAIL;
 
     // Initialisation de l'authentification
     useEffect(() => {
@@ -207,6 +214,31 @@ const App = () => {
         }
     };
 
+    const deletePlayer = async (playerId) => {
+        if (!isAdmin || !isFirebaseConnected) {
+            console.error("Permission refusée. Seul l'administrateur peut supprimer un joueur.");
+            return;
+        }
+
+        const playerDocRef = doc(db, `artifacts/${appID}/public/data/players/${playerId}`);
+        
+        try {
+            // Suppression des activités du joueur
+            const activitiesQuery = collection(playerDocRef, 'activities');
+            const activitiesSnapshot = await getDocs(activitiesQuery);
+            const deletePromises = activitiesSnapshot.docs.map(actDoc => deleteDoc(doc(playerDocRef, 'activities', actDoc.id)));
+            await Promise.all(deletePromises);
+            
+            // Suppression du document joueur lui-même
+            await deleteDoc(playerDocRef);
+            
+            console.log(`Joueur ${playerId} et ses activités supprimés.`);
+            setSelectedPlayer(null); // Retourne à la liste
+        } catch (e) {
+            console.error("Erreur lors de la suppression du joueur:", e);
+        }
+    };
+
     const handleLogout = async () => {
         if (isFirebaseConnected && auth) {
             try {
@@ -251,11 +283,29 @@ const App = () => {
                 setLoading(false);
                 return;
             }
+
             try {
+                // Vérification du doublon de nom de joueur (insensible à la casse)
+                const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
+                const q = query(playersRef, where("name", "==", playerName));
+                const querySnapshot = await getDocs(q);
+                
+                let nameExists = false;
+                querySnapshot.forEach(doc => {
+                    if (doc.data().name.toLowerCase() === playerName.toLowerCase()) {
+                        nameExists = true;
+                    }
+                });
+
+                if (nameExists) {
+                    setError("Un joueur avec ce nom existe déjà. Veuillez en choisir un autre.");
+                    setLoading(false);
+                    return;
+                }
+
+                // Si le nom est unique, on procède à l'inscription
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
-                // Ajouter le joueur à la collection `players` avec l'UID comme ID de document
-                const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
                 await setDoc(doc(playersRef, user.uid), {
                     name: playerName,
                     email: user.email,
@@ -372,6 +422,7 @@ const App = () => {
         const [activityToDelete, setActivityToDelete] = useState(null);
         const [deleting, setDeleting] = useState(false);
         const [message, setMessage] = useState('');
+        const [showPlayerDeleteConfirmation, setShowPlayerDeleteConfirmation] = useState(false);
 
         useEffect(() => {
             if (isFirebaseConnected && player && db) {
@@ -411,6 +462,11 @@ const App = () => {
             setShowDeleteConfirmation(false);
             setActivityToDelete(null);
         };
+
+        const handleDeletePlayer = () => {
+            deletePlayer(player.id);
+            setShowPlayerDeleteConfirmation(false);
+        };
         
         const renderGroupProgress = (groupName) => {
           const groupGoals = {
@@ -439,12 +495,22 @@ const App = () => {
         
         return (
             <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                <button
-                    onClick={onBack}
-                    className="mb-6 text-orange-400 font-bold hover:text-orange-300 transition-colors duration-200"
-                >
-                    &larr; Retour au classement
-                </button>
+                <div className="flex justify-between items-center mb-6">
+                    <button
+                        onClick={onBack}
+                        className="text-orange-400 font-bold hover:text-orange-300 transition-colors duration-200"
+                    >
+                        &larr; Retour au classement
+                    </button>
+                    {isAdmin && (
+                        <button
+                            onClick={() => setShowPlayerDeleteConfirmation(true)}
+                            className="bg-red-600 text-white font-bold px-4 py-2 rounded-full hover:bg-red-700 transition-colors"
+                        >
+                            Supprimer le joueur
+                        </button>
+                    )}
+                </div>
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-orange-400">{player.name}</h2>
                     <span className="text-3xl font-extrabold text-white">{player.totalPoints.toFixed(1)} Pts</span>
@@ -585,6 +651,30 @@ const App = () => {
                         </div>
                     </div>
                 )}
+                {showPlayerDeleteConfirmation && (
+                    <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
+                            <h3 className="text-2xl font-bold text-red-400 mb-4 text-center">Confirmer la suppression du joueur</h3>
+                            <p className="text-gray-300 mb-6 text-center">
+                                Êtes-vous sûr de vouloir supprimer le joueur <span className="font-bold text-orange-400">{player.name}</span> ? Cette action est irréversible et supprimera également toutes ses activités.
+                            </p>
+                            <div className="flex justify-center space-x-4">
+                                <button
+                                    onClick={() => setShowPlayerDeleteConfirmation(false)}
+                                    className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    onClick={handleDeletePlayer}
+                                    className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors"
+                                >
+                                    Supprimer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
@@ -623,6 +713,22 @@ const App = () => {
                             if (playerName === '') return;
                             const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
                             try {
+                                // Vérification du doublon de nom de joueur (insensible à la casse)
+                                const q = query(playersRef, where("name", "==", playerName));
+                                const querySnapshot = await getDocs(q);
+
+                                let nameExists = false;
+                                querySnapshot.forEach(doc => {
+                                    if (doc.data().name.toLowerCase() === playerName.toLowerCase()) {
+                                        nameExists = true;
+                                    }
+                                });
+                                
+                                if (nameExists) {
+                                    console.error("Un joueur avec ce nom existe déjà.");
+                                    return;
+                                }
+
                                 await setDoc(doc(playersRef, currentUser.uid), {
                                     name: playerName,
                                     email: currentUser.email,
@@ -656,16 +762,36 @@ const App = () => {
                         <ul className="space-y-4">
                             {players.map((player, index) => (
                                 <li key={player.id}>
-                                    <button
-                                        onClick={() => setSelectedPlayer(player)}
-                                        className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between"
-                                    >
-                                        <div className="flex items-center space-x-4">
-                                            <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
+                                    <div className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between">
+                                        <button
+                                            onClick={() => setSelectedPlayer(player)}
+                                            className="flex items-center space-x-4 flex-grow focus:outline-none"
+                                        >
+                                            <span className="text-xl font-extrabold text-orange-400 w-8 text-center">
+                                                {index === 0 && '🏆'}
+                                                {index === 1 && '🥈'}
+                                                {index > 1 && `${index + 1}.`}
+                                            </span>
                                             <span className="text-lg font-semibold text-white">{player.name}</span>
+                                        </button>
+                                        <div className="flex items-center space-x-4">
+                                            <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (window.confirm(`Voulez-vous vraiment supprimer le joueur ${player.name} ?`)) {
+                                                            deletePlayer(player.id);
+                                                        }
+                                                    }}
+                                                    className="text-red-500 hover:text-red-600 transition-colors"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                         </div>
-                                        <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
-                                    </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -702,7 +828,7 @@ const App = () => {
                             </div>
                         </div>
                     )}
-                    {currentUser && <BurgerMenu currentUser={currentUser} handleLogout={handleLogout} players={players} />}
+                    {currentUser && <BurgerMenu currentUser={currentUser} handleLogout={handleLogout} players={players} isAdmin={isAdmin} />}
                 </div>
             </header>
 
@@ -711,11 +837,10 @@ const App = () => {
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.7.0</p>
+                <p>Version 3.8.1</p>
             </footer>
         </div>
     );
 };
 
 export default App;
-
