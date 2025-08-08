@@ -13,7 +13,7 @@ let db;
 let auth;
 let isFirebaseConnected = false;
 
-if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
+if (Object.keys(firebaseConfig).length > 0) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
@@ -24,7 +24,7 @@ if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
     console.error("Erreur lors de l'initialisation de Firebase:", e);
   }
 } else {
-  console.error("La configuration Firebase est manquante ou le jeton d'authentification est manquant. L'application fonctionnera en mode local (non-persistant).");
+  console.error("La configuration Firebase est manquante. L'application fonctionnera en mode local (non-persistant).");
 }
 
 const EXERCISES = [
@@ -76,8 +76,6 @@ const getExerciseIcon = (exerciseName) => {
 
 
 const App = () => {
-  // L'ID utilisateur n'est plus utilisé pour le chemin de la collection,
-  // mais il est toujours nécessaire pour l'authentification.
   const [userId, setUserId] = useState(crypto.randomUUID()); 
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -99,6 +97,8 @@ const App = () => {
     if (isFirebaseConnected) {
       const initializeAuth = async () => {
         try {
+          // Utilise le token si disponible (dans l'environnement Canvas)
+          // Sinon, utilise la connexion anonyme pour les déploiements publics
           if (initialAuthToken) {
             await signInWithCustomToken(auth, initialAuthToken);
           } else {
@@ -114,9 +114,11 @@ const App = () => {
         if (user) {
           setUserId(user.uid);
           console.log("Utilisateur authentifié:", user.uid);
+          setIsFirebaseReady(true);
         } else {
           setUserId(null);
           console.log("Utilisateur déconnecté.");
+          setIsFirebaseReady(false);
         }
       });
       return () => unsubscribe();
@@ -125,7 +127,7 @@ const App = () => {
 
   // Utilisation d'un chemin de collection public pour les joueurs
   useEffect(() => {
-    if (isFirebaseConnected && db) {
+    if (isFirebaseReady && db) {
       const playersCollectionPath = `artifacts/${appId}/public/data/players`;
       const usersRef = collection(db, playersCollectionPath);
       const unsubscribe = onSnapshot(usersRef, (snapshot) => {
@@ -142,7 +144,7 @@ const App = () => {
 
   // Utilisation d'un chemin de collection public pour les activités
   useEffect(() => {
-    if (isFirebaseConnected && db && selectedPlayer) {
+    if (isFirebaseReady && db && selectedPlayer) {
       const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
       const playerActivitiesRef = collection(db, activitiesCollectionPath);
       const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
@@ -150,7 +152,7 @@ const App = () => {
         setActivities(activitiesList);
       });
       return () => unsubscribe();
-    } else if (!isFirebaseConnected && selectedPlayer) {
+    } else if (!isFirebaseReady && selectedPlayer) {
       // Logique pour le mode local (non persistant)
       setActivities([]);
     }
@@ -181,11 +183,12 @@ const App = () => {
   const handleAddPlayer = async () => {
     const playerName = prompt("Entrez le nom du nouveau joueur:");
     if (playerName) {
-      if (isFirebaseConnected && db) {
+      if (isFirebaseReady && db) {
         const playersCollectionPath = `artifacts/${appId}/public/data/players`;
         const newPlayerRef = doc(collection(db, playersCollectionPath));
         await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
       } else {
+        // En mode local, l'ID utilisateur est un ID généré aléatoirement
         const newPlayer = { id: Date.now().toString(), name: playerName, createdAt: new Date() };
         setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
       }
@@ -220,7 +223,7 @@ const App = () => {
     }
     setLoading(true);
     try {
-      if (isFirebaseConnected && db && selectedPlayer) {
+      if (isFirebaseReady && db && selectedPlayer) {
         const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
         const activityRef = doc(collection(db, activitiesCollectionPath));
         await setDoc(activityRef, newActivity);
@@ -254,7 +257,7 @@ const App = () => {
     if (activityToDelete) {
       setDeleting(true);
       try {
-        if (isFirebaseConnected && db && selectedPlayer) {
+        if (isFirebaseReady && db && selectedPlayer) {
           const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
           const activityRef = doc(db, activitiesCollectionPath, activityToDelete.id);
           await deleteDoc(activityRef);
@@ -509,4 +512,3 @@ const App = () => {
 };
 
 export default App;
-// version13h45
