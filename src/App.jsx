@@ -13,7 +13,7 @@ let db;
 let auth;
 
 // Ne pas initialiser si la configuration est manquante
-if (Object.keys(firebaseConfig).length > 0) {
+if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
@@ -23,7 +23,7 @@ if (Object.keys(firebaseConfig).length > 0) {
     console.error("Erreur lors de l'initialisation de Firebase:", e);
   }
 } else {
-  console.error("La configuration Firebase est manquante.");
+  console.error("La configuration Firebase est manquante ou le jeton d'authentification est manquant.");
 }
 
 // Les exercices sont maintenant associés à des groupes spécifiques basés sur le document PDF
@@ -63,12 +63,14 @@ const App = () => {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         if (!auth) {
-            console.error("L'instance d'authentification n'est pas disponible.");
+            console.error("L'instance d'authentification n'est pas disponible. Vérifiez la configuration Firebase.");
+            setIsFirebaseReady(false);
             return;
         }
         
@@ -77,11 +79,13 @@ const App = () => {
         } else {
           await signInAnonymously(auth);
         }
+        setIsFirebaseReady(true);
       } catch (error) {
         console.error("Erreur lors de l'authentification:", error);
+        setIsFirebaseReady(false);
       }
     };
-    if (Object.keys(firebaseConfig).length > 0 && !isAuthenticated) {
+    if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
       initializeAuth();
     }
   }, [isAuthenticated]);
@@ -108,7 +112,7 @@ const App = () => {
 
 
   useEffect(() => {
-    if (db && userId) {
+    if (db && userId && isFirebaseReady) {
       const usersRef = collection(db, 'artifacts', appId, 'users', userId, 'players');
       const unsubscribe = onSnapshot(usersRef, (snapshot) => {
         const playersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -122,10 +126,10 @@ const App = () => {
       });
       return () => unsubscribe();
     }
-  }, [db, userId, appId, selectedPlayer]);
+  }, [db, userId, appId, selectedPlayer, isFirebaseReady]);
 
   useEffect(() => {
-    if (db && userId && selectedPlayer) {
+    if (db && userId && selectedPlayer && isFirebaseReady) {
       const playerActivitiesRef = collection(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities');
       const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
         const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -135,7 +139,7 @@ const App = () => {
     } else {
       setActivities([]);
     }
-  }, [db, userId, appId, selectedPlayer]);
+  }, [db, userId, appId, selectedPlayer, isFirebaseReady]);
 
 
   const calculatePoints = (activity) => {
@@ -161,9 +165,11 @@ const App = () => {
 
   const handleAddPlayer = async () => {
     const playerName = prompt("Entrez le nom du nouveau joueur:");
-    if (playerName && db && userId) {
+    if (playerName && db && userId && isFirebaseReady) {
       const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players'));
       await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
+    } else if (!isFirebaseReady) {
+        alert("L'application n'est pas encore connectée. Veuillez patienter ou vérifier votre configuration.");
     }
   };
 
@@ -220,7 +226,7 @@ const App = () => {
   };
 
   const handleDeleteActivity = async () => {
-    if (activityToDelete && db && userId && selectedPlayer) {
+    if (activityToDelete && db && userId && selectedPlayer && isFirebaseReady) {
       setDeleting(true);
       try {
         const activityRef = doc(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities', activityToDelete.id);
@@ -233,6 +239,8 @@ const App = () => {
       } finally {
         setDeleting(false);
       }
+    } else {
+        setMessage('Erreur: Connexion à la base de données impossible.');
     }
   };
 
@@ -242,6 +250,11 @@ const App = () => {
         <header className="text-center mb-8">
           <h1 className="text-3xl font-bold text-teal-400">Suivi d'activités TNT U12</h1>
           <p className="text-gray-400">ID Utilisateur: {userId ? userId : 'En attente...'}</p>
+          {!isFirebaseReady && (
+            <p className="text-red-400 text-sm mt-2">
+                Erreur: L'application n'est pas connectée à la base de données.
+            </p>
+          )}
         </header>
 
         {/* Section de gestion des joueurs */}
@@ -251,6 +264,7 @@ const App = () => {
             <button
               onClick={handleAddPlayer}
               className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors"
+              disabled={!isFirebaseReady}
             >
               Ajouter un joueur
             </button>
@@ -280,6 +294,7 @@ const App = () => {
               <button
                 onClick={handleOpenModal}
                 className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors"
+                disabled={!isFirebaseReady}
               >
                 Ajouter une activité
               </button>
