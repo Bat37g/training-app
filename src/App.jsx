@@ -1,11 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { HiMenu, HiX } from "react-icons/hi"; // Icônes pour le menu
+import { FaStar } from "react-icons/fa";
+import { RiDashboardLine, RiTeamLine } from 'react-icons/ri';
+import { LuLogOut } from "react-icons/lu";
+import { CgPlayListAdd } from "react-icons/cg";
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 // Initialisation de Firebase avec les configurations fournies par l'environnement
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  // Configuration fournie par l'utilisateur
   apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
   authDomain: "tnt-training.firebaseapp.com",
   projectId: "tnt-training",
@@ -37,674 +43,490 @@ if (Object.keys(firebaseConfig).length > 0) {
 }
 
 const EXERCISES = [
-  { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10 },
-  { name: 'Pompes', points: 10, unit: 'répétitions', pointsPer: 5 },
-  { name: 'Gainage', points: 15, unit: 'minutes', pointsPer: 15 },
-  { name: 'Corde à sauter', points: 20, unit: 'minutes', pointsPer: 10 },
-  { name: 'Course à pied', points: 25, unit: 'minutes', pointsPer: 15 },
-  { name: 'Squats', points: 5, unit: 'répétitions', pointsPer: 5 },
-  { name: 'Fentes', points: 5, unit: 'répétitions', pointsPer: 5 },
-  { name: 'Abdominaux', points: 10, unit: 'répétitions', pointsPer: 5 },
-  { name: 'Tractions', points: 15, unit: 'répétitions', pointsPer: 5 },
-  { name: 'Dips', points: 10, unit: 'répétitions', pointsPer: 5 },
-  { name: 'Rameur', points: 20, unit: 'minutes', pointsPer: 10 },
-  { name: 'Vélo', points: 25, unit: 'minutes', pointsPer: 10 },
-  { name: 'Natation', points: 30, unit: 'minutes', pointsPer: 15 },
-  { name: 'Boxe', points: 35, unit: 'minutes', pointsPer: 15 },
-  { name: 'CrossFit', points: 40, unit: 'minutes', pointsPer: 20 },
+  { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Endurance' },
+  { name: 'Saut à la corde', points: 10, unit: 'minutes', pointsPer: 10, group: 'Cardio' },
+  { name: 'Course', points: 15, unit: 'minutes', pointsPer: 10, group: 'Cardio' },
+  { name: 'Pompes', points: 15, unit: 'répétitions', pointsPer: 10, group: 'Force' },
+  { name: 'Planche', points: 10, unit: 'secondes', pointsPer: 10, group: 'Force' },
+  { name: 'Squats', points: 10, unit: 'répétitions', pointsPer: 10, group: 'Force' },
+  { name: 'Vélo', points: 12, unit: 'minutes', pointsPer: 10, group: 'Endurance' },
+  { name: 'Gainage', points: 10, unit: 'minutes', pointsPer: 10, group: 'Force' },
+  { name: 'Flexions', points: 8, unit: 'répétitions', pointsPer: 10, group: 'Force' },
+  { name: 'Fentes', points: 12, unit: 'répétitions', pointsPer: 10, group: 'Force' },
 ];
 
 const App = () => {
-  // === GESTION DE L'ÉTAT DE L'APPLICATION ===
-  const [players, setPlayers] = useState([]);
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userId, setUserId] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(true); // Faux pour l'instant, à adapter plus tard
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'admin'
-
-  // === GESTION DES MODALES ET FORMULAIRES ===
-  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [view, setView] = useState('accueil');
+  const [players, setPlayers] = useState([]);
   const [newPlayerName, setNewPlayerName] = useState('');
-
-  const [isAddingActivity, setIsAddingActivity] = useState(false);
-  const [selectedExercise, setSelectedExercise] = useState('');
-  const [activityValue, setActivityValue] = useState(0);
-  const [activityDate, setActivityDate] = useState('');
-  const [addingActivity, setAddingActivity] = useState(false);
-
-  const [isEditingActivity, setIsEditingActivity] = useState(false);
-  const [activityToEdit, setActivityToEdit] = useState(null);
-  const [editingActivity, setEditingActivity] = useState(false);
-
-  const [isDeletingActivity, setIsDeletingActivity] = useState(false);
+  const [message, setMessage] = useState('');
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [activityInput, setActivityInput] = useState({
+    exercise: '',
+    value: '',
+    date: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState('');
 
-  const [isConfirmingDeletePlayer, setIsConfirmingDeletePlayer] = useState(false);
-  const [playerToDelete, setPlayerToDelete] = useState(null);
-  const [deletingPlayer, setDeletingPlayer] = useState(false);
-
-  // === AUTHENTIFICATION ET CHARGEMENT INITIAL ===
+  // Établir l'authentification et la connexion à Firebase
   useEffect(() => {
     if (!isFirebaseConnected) {
-      setLoading(false);
       setIsAuthReady(true);
       return;
     }
 
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUserId(user.uid);
-      } else if (initialAuthToken) {
-        try {
-          const userCredential = await signInWithCustomToken(auth, initialAuthToken);
-          setUserId(userCredential.user.uid);
-        } catch (authError) {
-          console.error("Erreur lors de la connexion avec le jeton personnalisé:", authError);
-          setUserId(crypto.randomUUID());
+    const signInAndListen = async () => {
+      try {
+        if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
+        } else {
+          await signInAnonymously(auth);
         }
-      } else {
-        try {
-          const userCredential = await signInAnonymously(auth);
-          setUserId(userCredential.user.uid);
-        } catch (authError) {
-          console.error("Erreur lors de la connexion anonyme:", authError);
-          setUserId(crypto.randomUUID());
-        }
+      } catch (error) {
+        console.error("Erreur d'authentification Firebase:", error);
       }
-      setIsAuthReady(true);
-    });
 
-    return () => unsub();
-  }, []);
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          setIsAuthenticated(true);
+          setUserId(user.uid);
+          console.log("Utilisateur connecté:", user.uid);
+        } else {
+          setIsAuthenticated(false);
+          setUserId(null);
+          console.log("Utilisateur déconnecté.");
+        }
+        setIsAuthReady(true);
+      });
+    };
 
-  // === CHARGEMENT DES JOUEURS (ABONNEMENT EN TEMPS RÉEL) ===
+    signInAndListen();
+  }, [auth, initialAuthToken]);
+
+  // Écouter les données des joueurs une fois l'authentification prête
   useEffect(() => {
-    if (!isFirebaseConnected || !isAuthReady || !userId) return;
+    if (!isAuthReady || !isAuthenticated || !db || !userId) {
+      return;
+    }
 
-    const playersCollectionRef = collection(db, "artifacts", appId, "public", "data", "players");
-    const unsub = onSnapshot(playersCollectionRef, (snapshot) => {
-      const playersList = snapshot.docs.map(doc => ({
+    const playersRef = collection(db, `artifacts/${appId}/users/${userId}/players`);
+    const unsubscribe = onSnapshot(playersRef, (snapshot) => {
+      const playersData = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        activities: doc.data().activities || []
+        ...doc.data()
       }));
-      setPlayers(playersList);
-      setLoading(false);
-    }, (err) => {
-      console.error("Erreur de chargement des joueurs:", err);
-      setError("Impossible de charger les données. Veuillez réessayer.");
-      setLoading(false);
+      setPlayers(playersData);
+      console.log("Données des joueurs mises à jour.");
+    }, (error) => {
+      console.error("Erreur lors de la récupération des joueurs:", error);
+      setMessage(`Erreur: Impossible de récupérer les joueurs. ${error.message}`);
     });
 
-    return () => unsub();
-  }, [isFirebaseConnected, isAuthReady, userId]);
+    return () => unsubscribe();
+  }, [isAuthReady, isAuthenticated, db, userId]);
 
-  // === LOGIQUE DE L'APPLICATION ===
-  const handleSignOut = async () => {
-    if (!isFirebaseConnected) return;
-    try {
-      await signOut(auth);
-      // Réinitialiser les états
-      setUserId(null);
-      setSelectedPlayer(null);
-      setCurrentView('dashboard');
-      setPlayers([]);
-      setError('');
-      setIsMenuOpen(false);
-      console.log("Déconnexion réussie.");
-    } catch (e) {
-      console.error("Erreur lors de la déconnexion:", e);
-      setError("Erreur lors de la déconnexion.");
+  // Fonction pour ajouter un joueur
+  const handleAddPlayer = async (e) => {
+    e.preventDefault();
+    if (!isAuthReady || !isAuthenticated) {
+      setMessage("Erreur: Vous n'êtes pas authentifié pour effectuer cette action.");
+      return;
     }
-  };
+    if (!newPlayerName.trim()) {
+      setMessage("Le nom du joueur ne peut pas être vide.");
+      return;
+    }
 
-  const handleAddPlayer = async () => {
-    if (newPlayerName.trim() === '') return;
-    setLoading(true);
     try {
-      const playerDocRef = doc(db, "artifacts", appId, "public", "data", "players", newPlayerName);
-      await setDoc(playerDocRef, {
-        name: newPlayerName,
+      const playersRef = collection(db, `artifacts/${appId}/users/${userId}/players`);
+      await addDoc(playersRef, {
+        name: newPlayerName.trim(),
+        points: 0,
         activities: []
       });
       setNewPlayerName('');
-      setIsAddingPlayer(false);
-      setError('');
-    } catch (e) {
-      console.error("Erreur d'ajout du joueur:", e);
-      setError("Erreur lors de l'ajout du joueur.");
-    } finally {
-      setLoading(false);
+      setMessage('');
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du joueur:", error);
+      setMessage(`Erreur: Impossible d'ajouter le joueur. ${error.message}`);
     }
   };
 
-  const handleOpenAddActivity = (player) => {
+  const handleSelectPlayer = (player) => {
     setSelectedPlayer(player);
-    setSelectedExercise(EXERCISES[0].name);
-    setActivityValue('');
-    setActivityDate(new Date().toISOString().substring(0, 10));
-    setIsAddingActivity(true);
+    setView('player-detail');
   };
 
-  const handleAddActivity = async () => {
-    if (!selectedPlayer || !selectedExercise || !activityValue || !activityDate) return;
+  const handleAddActivity = async (e) => {
+    e.preventDefault();
+    if (!selectedPlayer) return;
+    if (!activityInput.exercise || !activityInput.value || !activityInput.date) {
+      setMessage("Veuillez remplir tous les champs de l'activité.");
+      return;
+    }
 
-    setAddingActivity(true);
-    const exercise = EXERCISES.find(ex => ex.name === selectedExercise);
+    const exercise = EXERCISES.find(ex => ex.name === activityInput.exercise);
+    if (!exercise) {
+      setMessage("Exercice non trouvé.");
+      return;
+    }
+
+    const points = Math.floor((activityInput.value / exercise.pointsPer) * exercise.points);
     const newActivity = {
-      id: Date.now(),
-      exercise: selectedExercise,
-      value: Number(activityValue),
-      date: activityDate,
-      points: Math.floor(Number(activityValue) / exercise.pointsPer) * exercise.points
+      ...activityInput,
+      points: points,
+      timestamp: new Date(activityInput.date).getTime()
     };
 
     try {
-      const playerDocRef = doc(db, "artifacts", appId, "public", "data", "players", selectedPlayer.id);
+      const playerDocRef = doc(db, `artifacts/${appId}/users/${userId}/players`, selectedPlayer.id);
       const playerDoc = await getDoc(playerDocRef);
-      const currentActivities = playerDoc.data().activities || [];
-      await updateDoc(playerDocRef, {
-        activities: [...currentActivities, newActivity]
-      });
-      setIsAddingActivity(false);
-      setError('');
-    } catch (e) {
-      console.error("Erreur d'ajout de l'activité:", e);
-      setError("Erreur lors de l'ajout de l'activité.");
-    } finally {
-      setAddingActivity(false);
+      if (playerDoc.exists()) {
+        const playerData = playerDoc.data();
+        const updatedActivities = [...(playerData.activities || []), newActivity];
+        const totalPoints = updatedActivities.reduce((sum, act) => sum + act.points, 0);
+
+        await updateDoc(playerDocRef, {
+          activities: updatedActivities,
+          points: totalPoints,
+        });
+
+        setActivityInput({
+          exercise: '',
+          value: '',
+          date: format(new Date(), 'yyyy-MM-dd')
+        });
+        setMessage('');
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'ajout de l'activité:", error);
+      setMessage(`Erreur: Impossible d'ajouter l'activité. ${error.message}`);
     }
   };
 
-  const handleOpenEditActivity = (player, activity) => {
-    setSelectedPlayer(player);
-    setActivityToEdit(activity);
-    setSelectedExercise(activity.exercise);
-    setActivityValue(activity.value);
-    setActivityDate(activity.date);
-    setIsEditingActivity(true);
-  };
-
-  const handleEditActivity = async () => {
-    if (!selectedPlayer || !activityToEdit || !selectedExercise || !activityValue || !activityDate) return;
-
-    setEditingActivity(true);
-    const exercise = EXERCISES.find(ex => ex.name === selectedExercise);
-    const updatedActivity = {
-      id: activityToEdit.id,
-      exercise: selectedExercise,
-      value: Number(activityValue),
-      date: activityDate,
-      points: Math.floor(Number(activityValue) / exercise.pointsPer) * exercise.points
-    };
-
+  const handleLogout = async () => {
     try {
-      const playerDocRef = doc(db, "artifacts", appId, "public", "data", "players", selectedPlayer.id);
-      const playerDoc = await getDoc(playerDocRef);
-      const currentActivities = playerDoc.data().activities || [];
-      const updatedActivities = currentActivities.map(act => act.id === activityToEdit.id ? updatedActivity : act);
-      await updateDoc(playerDocRef, { activities: updatedActivities });
-      setIsEditingActivity(false);
-      setActivityToEdit(null);
-      setError('');
-    } catch (e) {
-      console.error("Erreur de modification de l'activité:", e);
-      setError("Erreur lors de la modification de l'activité.");
-    } finally {
-      setEditingActivity(false);
+      if (auth) {
+        await signOut(auth);
+        console.log("Déconnexion réussie.");
+        setMessage("Vous avez été déconnecté.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion:", error);
+      setMessage(`Erreur de déconnexion: ${error.message}`);
     }
   };
 
-  const handleOpenDeleteConfirmation = (player, activity) => {
-    setSelectedPlayer(player);
+  const confirmDeleteActivity = (activity) => {
     setActivityToDelete(activity);
-    setIsDeletingActivity(true);
+    setShowDeleteConfirmation(true);
   };
 
   const handleCloseDeleteConfirmation = () => {
-    setIsDeletingActivity(false);
+    setShowDeleteConfirmation(false);
     setActivityToDelete(null);
-    setMessage('');
   };
 
   const handleDeleteActivity = async () => {
     if (!selectedPlayer || !activityToDelete) return;
-
     setDeleting(true);
     try {
-      const playerDocRef = doc(db, "artifacts", appId, "public", "data", "players", selectedPlayer.id);
+      const playerDocRef = doc(db, `artifacts/${appId}/users/${userId}/players`, selectedPlayer.id);
       const playerDoc = await getDoc(playerDocRef);
-      const currentActivities = playerDoc.data().activities || [];
-      const updatedActivities = currentActivities.filter(act => act.id !== activityToDelete.id);
-      await updateDoc(playerDocRef, { activities: updatedActivities });
-      handleCloseDeleteConfirmation();
-      setError('');
-    } catch (e) {
-      console.error("Erreur de suppression de l'activité:", e);
-      setMessage("Erreur lors de la suppression de l'activité.");
+
+      if (playerDoc.exists()) {
+        const playerData = playerDoc.data();
+        const updatedActivities = playerData.activities.filter(
+          act => act.date !== activityToDelete.date || act.exercise !== activityToDelete.exercise
+        );
+        const totalPoints = updatedActivities.reduce((sum, act) => sum + act.points, 0);
+
+        await updateDoc(playerDocRef, {
+          activities: updatedActivities,
+          points: totalPoints,
+        });
+
+        handleCloseDeleteConfirmation();
+        setMessage('Activité supprimée avec succès !');
+      }
+    } catch (error) {
+      console.error("Erreur lors de la suppression de l'activité:", error);
+      setMessage(`Erreur: Impossible de supprimer l'activité. ${error.message}`);
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleOpenDeletePlayerConfirmation = (player) => {
-    setPlayerToDelete(player);
-    setIsConfirmingDeletePlayer(true);
-  };
-
-  const handleCloseDeletePlayerConfirmation = () => {
-    setIsConfirmingDeletePlayer(false);
-    setPlayerToDelete(null);
-  };
-
-  const handleDeletePlayer = async () => {
-    if (!playerToDelete) return;
-
-    setDeletingPlayer(true);
-    try {
-      const playerDocRef = doc(db, "artifacts", appId, "public", "data", "players", playerToDelete.id);
-      await deleteDoc(playerDocRef);
-      handleCloseDeletePlayerConfirmation();
-      setError('');
-    } catch (e) {
-      console.error("Erreur de suppression du joueur:", e);
-      setError("Erreur lors de la suppression du joueur.");
-    } finally {
-      setDeletingPlayer(false);
-    }
-  };
-
-
-  const calculateTotalPoints = (player) => {
-    if (!player || !player.activities) return 0;
-    return player.activities.reduce((total, activity) => total + activity.points, 0);
-  };
-
-  // Trier les joueurs par points décroissants
-  const sortedPlayers = [...players].sort((a, b) => calculateTotalPoints(b) - calculateTotalPoints(a));
-
-  const getPointsForActivity = (activity) => {
-    const exercise = EXERCISES.find(ex => ex.name === activity.exercise);
-    if (!exercise) return 0;
-    return Math.floor(Number(activity.value) / exercise.pointsPer) * exercise.points;
-  };
-
-  // === RENDU DE L'APPLICATION ===
-  return (
-    <div className="bg-gray-900 min-h-screen p-8 text-white font-sans antialiased relative pb-16">
-      <div className="max-w-7xl mx-auto">
-        {/* En-tête de l'application avec le menu burger */}
-        <header className="flex justify-between items-center mb-12">
-          <button onClick={() => setIsMenuOpen(true)} className="p-2 text-gray-400 hover:text-white transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <div className="flex-grow text-center">
-            <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
-              Tableau de Bord
-            </h1>
-            <p className="text-center text-gray-400 text-lg">
-              Suivez les performances de vos joueurs.
-            </p>
-          </div>
-          {/* Bouton pour ajouter un joueur, si sur le dashboard */}
-          {currentView === 'dashboard' && !selectedPlayer && !isAddingPlayer && (
-            <button
-              onClick={() => setIsAddingPlayer(true)}
-              className="bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg hover:bg-orange-600 transition-transform transform hover:scale-105 font-semibold text-sm"
-            >
-              Ajouter un Joueur
-            </button>
-          )}
-        </header>
-
-        {/* Menu latéral (burger) */}
-        <div className={`fixed inset-y-0 left-0 bg-gray-800 w-64 p-8 z-50 transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-xl font-bold text-white">Menu</h2>
-            <button onClick={() => setIsMenuOpen(false)} className="p-2 text-gray-400 hover:text-white transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-gray-400 mb-6">Connecté en tant que:</p>
-          <p className="text-white font-bold mb-8 break-all">{userId}</p>
-          <ul className="space-y-4">
-            <li>
-              <button onClick={() => { setCurrentView('dashboard'); setIsMenuOpen(false); }} className="text-orange-400 hover:text-orange-500 transition-colors w-full text-left">
-                Tableau de Bord
-              </button>
-            </li>
-            {isAdmin && (
-              <li>
-                <button onClick={() => { setCurrentView('admin'); setIsMenuOpen(false); }} className="text-orange-400 hover:text-orange-500 transition-colors w-full text-left">
-                  Gérer les joueurs
-                </button>
-              </li>
-            )}
-            <li>
-              <button onClick={handleSignOut} className="bg-red-600 text-white px-4 py-2 rounded-full w-full text-left hover:bg-red-700 transition-colors mt-8">
-                Déconnexion
-              </button>
-            </li>
-          </ul>
-        </div>
-        {isMenuOpen && <div className="fixed inset-0 bg-gray-900 bg-opacity-50 z-40" onClick={() => setIsMenuOpen(false)}></div>}
-
-        {loading && (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-orange-500"></div>
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-800 p-4 rounded-lg shadow-lg text-center mb-6">
-            <p className="text-red-200">{error}</p>
-          </div>
-        )}
-
-        {/* Vue principale : Tableau de bord des joueurs */}
-        {!loading && !selectedPlayer && currentView === 'dashboard' && (
-          <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl mb-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-gray-100">Classement des Joueurs</h2>
-              {isAddingPlayer && (
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="text"
-                    value={newPlayerName}
-                    onChange={(e) => setNewPlayerName(e.target.value)}
-                    placeholder="Nom du joueur"
-                    className="flex-grow bg-gray-800 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <button
-                    onClick={handleAddPlayer}
-                    className="bg-green-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-green-700 transition-transform transform hover:scale-105 font-semibold"
-                  >
-                    Confirmer
-                  </button>
-                  <button
-                    onClick={() => setIsAddingPlayer(false)}
-                    className="bg-gray-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-gray-500 transition-transform transform hover:scale-105 font-semibold"
-                  >
-                    Annuler
-                  </button>
-                </div>
-              )}
-            </div>
-            {!isAddingPlayer && (
+  const renderView = () => {
+    switch (view) {
+      case 'accueil':
+        const sortedPlayers = [...players].sort((a, b) => b.points - a.points);
+        return (
+          <div className="p-4 sm:p-6 md:p-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center text-white mb-6">
+              Classement des joueurs
+            </h2>
+            {sortedPlayers.length === 0 ? (
+              <p className="text-center text-gray-400">Aucun joueur n'est encore enregistré.</p>
+            ) : (
               <div className="space-y-4">
-                {sortedPlayers.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">Aucun joueur n'a encore été ajouté.</p>
-                ) : (
-                  sortedPlayers.map((player) => (
-                    <div key={player.id} className="bg-gray-700 p-5 rounded-xl shadow-md flex items-center justify-between transition-all duration-300 hover:bg-gray-600">
-                      <div
-                        className="flex-grow cursor-pointer"
-                        onClick={() => setSelectedPlayer(player)}
-                      >
-                        <h3 className="text-2xl font-bold text-orange-400">{player.name}</h3>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <span className="text-3xl font-extrabold text-orange-400">
-                          {calculateTotalPoints(player)} pts
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenDeletePlayerConfirmation(player);
-                          }}
-                          className="p-2 text-red-400 hover:text-red-600 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
+                {sortedPlayers.map((player, index) => (
+                  <div
+                    key={player.id}
+                    className="bg-gray-800 p-4 rounded-xl shadow-lg flex items-center justify-between cursor-pointer hover:bg-gray-700 transition-colors"
+                    onClick={() => handleSelectPlayer(player)}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className="text-orange-400 font-bold text-xl w-8 text-center">{index + 1}</div>
+                      <div className="font-bold text-lg text-white">{player.name}</div>
                     </div>
-                  ))
-                )}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg font-semibold text-orange-400">{player.points}</span>
+                      <FaStar className="text-yellow-400" />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        )}
+        );
 
-        {/* Vue principale : Détails du joueur */}
-        {selectedPlayer && currentView === 'dashboard' && (
-          <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <button
-                onClick={() => setSelectedPlayer(null)}
-                className="text-gray-400 hover:text-orange-500 transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <div className="flex-grow text-center">
-                <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
-                  {selectedPlayer.name}
-                </h2>
-                <p className="text-gray-400 text-xl"><span className="font-bold">{calculateTotalPoints(selectedPlayer)} pts</span></p>
-              </div>
-              <button
-                onClick={() => handleOpenAddActivity(selectedPlayer)}
-                className="bg-orange-500 text-white px-6 py-3 rounded-full shadow-lg hover:bg-orange-600 transition-transform transform hover:scale-105 font-semibold text-sm md:text-base"
-              >
-                Ajouter une Activité
-              </button>
-            </div>
-
-            <div className="mt-8">
-              <h3 className="text-2xl font-bold text-gray-100 mb-4">Historique des Activités</h3>
-              {selectedPlayer.activities.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Aucune activité n'a encore été enregistrée pour ce joueur.</p>
-              ) : (
-                <div className="space-y-4">
-                  {selectedPlayer.activities.map((activity) => (
-                    <div key={activity.id} className="bg-gray-700 p-5 rounded-xl shadow-md flex items-center justify-between transition-all duration-300 hover:bg-gray-600">
-                      <div className="flex-grow">
-                        <p className="text-lg font-semibold text-orange-400">{activity.exercise}</p>
-                        <p className="text-gray-300 text-sm">{activity.date}</p>
-                        <p className="text-gray-400 text-sm">Valeur: {activity.value}</p>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <span className="text-2xl font-bold text-green-400">{getPointsForActivity(activity)} pts</span>
-                        <button
-                          onClick={() => handleOpenEditActivity(selectedPlayer, activity)}
-                          className="p-2 text-blue-400 hover:text-blue-600 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                            <path d="M2 13.5V17a2 2 0 002 2h3.5a2 2 0 000-4H4a2 2 0 00-2 2z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleOpenDeleteConfirmation(selectedPlayer, activity)}
-                          className="p-2 text-red-400 hover:text-red-600 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      </div>
+      case 'gerer-joueurs':
+        return (
+          <div className="p-4 sm:p-6 md:p-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center text-white mb-6">
+              Gérer les joueurs
+            </h2>
+            {players.length === 0 ? (
+              <p className="text-center text-gray-400">Aucun joueur n'est encore enregistré.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {players.map((player) => (
+                  <div
+                    key={player.id}
+                    onClick={() => handleSelectPlayer(player)}
+                    className="relative bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer hover:bg-gray-700 transition-colors group"
+                  >
+                    <h3 className="text-xl font-bold text-white mb-2">{player.name}</h3>
+                    <div className="flex items-center text-orange-400 font-bold">
+                      <FaStar className="mr-2" />
+                      <span>{player.points} points</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Vue principale : Page d'administration */}
-        {!loading && currentView === 'admin' && (
-          <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl mb-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold text-gray-100">Gérer les joueurs</h2>
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className="text-gray-400 hover:text-orange-500 transition-colors"
-              >
-                Retour au tableau de bord
-              </button>
-            </div>
-            <div className="space-y-4">
-              {players.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Aucun joueur n'a encore été ajouté.</p>
-              ) : (
-                players.map((player) => (
-                  <div key={player.id} className="bg-gray-700 p-5 rounded-xl shadow-md flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-bold text-orange-400">{player.name}</h3>
+                    <div className="absolute top-4 right-4 text-gray-500 group-hover:text-white transition-colors">
+                      <CgPlayListAdd size={24} />
                     </div>
-                    <button
-                      onClick={() => handleOpenDeletePlayerConfirmation(player)}
-                      className="p-2 text-red-400 hover:text-red-600 transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        );
 
-        {/* === MODALES === */}
-        {/* Modale d'ajout d'activité */}
-        {isAddingActivity && (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-              <h3 className="text-2xl font-bold text-white mb-4">Ajouter une activité pour {selectedPlayer.name}</h3>
-              <div className="space-y-4 mb-6">
+      case 'player-detail':
+        return (
+          <div className="p-4 sm:p-6 md:p-8 text-white">
+            <button
+              onClick={() => setView('gerer-joueurs')}
+              className="px-4 py-2 mb-6 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors flex items-center"
+            >
+              <span className="mr-2">&larr;</span> Retour
+            </button>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-center text-orange-400">
+              {selectedPlayer.name}
+            </h2>
+            <div className="text-center mb-6 text-xl font-bold flex items-center justify-center">
+              <span className="mr-2">Total des points:</span>
+              <span className="text-orange-400">{selectedPlayer.points}</span>
+              <FaStar className="text-yellow-400 ml-2" />
+            </div>
+
+            <div className="bg-gray-800 p-6 rounded-xl shadow-lg mb-6">
+              <h3 className="text-xl font-bold mb-4">Ajouter une activité</h3>
+              {message && <p className="text-sm text-center text-red-400 mb-4">{message}</p>}
+              <form onSubmit={handleAddActivity} className="space-y-4">
                 <div>
-                  <label htmlFor="exercise" className="block text-gray-400 mb-2">Exercice</label>
+                  <label htmlFor="exercise" className="block text-sm font-medium text-gray-400 mb-1">Exercice</label>
                   <select
                     id="exercise"
-                    value={selectedExercise}
-                    onChange={(e) => setSelectedExercise(e.target.value)}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={activityInput.exercise}
+                    onChange={(e) => setActivityInput({ ...activityInput, exercise: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
                   >
-                    {EXERCISES.map((ex) => (
-                      <option key={ex.name} value={ex.name}>{ex.name}</option>
+                    <option value="">Sélectionner un exercice</option>
+                    {EXERCISES.map(ex => (
+                      <option key={ex.name} value={ex.name}>{ex.name} ({ex.group})</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="value" className="block text-gray-400 mb-2">Valeur ({EXERCISES.find(ex => ex.name === selectedExercise)?.unit})</label>
+                  <label htmlFor="value" className="block text-sm font-medium text-gray-400 mb-1">Valeur ({EXERCISES.find(ex => ex.name === activityInput.exercise)?.unit || 'unité'})</label>
                   <input
                     id="value"
                     type="number"
-                    value={activityValue}
-                    onChange={(e) => setActivityValue(e.target.value)}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={activityInput.value}
+                    onChange={(e) => setActivityInput({ ...activityInput, value: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Valeur"
+                    required
                   />
                 </div>
                 <div>
-                  <label htmlFor="date" className="block text-gray-400 mb-2">Date</label>
+                  <label htmlFor="date" className="block text-sm font-medium text-gray-400 mb-1">Date</label>
                   <input
                     id="date"
                     type="date"
-                    value={activityDate}
-                    onChange={(e) => setActivityDate(e.target.value)}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={activityInput.date}
+                    onChange={(e) => setActivityInput({ ...activityInput, date: e.target.value })}
+                    className="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    required
                   />
                 </div>
-              </div>
-              <div className="flex justify-end space-x-4">
                 <button
-                  onClick={() => setIsAddingActivity(false)}
-                  disabled={addingActivity}
-                  className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                  type="submit"
+                  className="w-full py-2 bg-orange-600 text-white font-bold rounded-lg shadow-lg hover:bg-orange-700 transition-colors"
                 >
-                  Annuler
+                  Ajouter l'activité
                 </button>
-                <button
-                  onClick={handleAddActivity}
-                  disabled={addingActivity}
-                  className="px-6 py-2 bg-orange-500 text-white font-bold rounded-full shadow-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
-                >
-                  {addingActivity ? 'Ajout...' : 'Ajouter'}
-                </button>
-              </div>
+              </form>
+            </div>
+
+            <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
+              <h3 className="text-xl font-bold mb-4">Historique des activités</h3>
+              {selectedPlayer.activities && selectedPlayer.activities.length > 0 ? (
+                <ul className="space-y-3">
+                  {[...selectedPlayer.activities].sort((a, b) => b.timestamp - a.timestamp).map((activity, index) => (
+                    <li key={index} className="flex justify-between items-center bg-gray-700 p-3 rounded-lg">
+                      <div>
+                        <div className="font-semibold text-lg text-white">
+                          {activity.exercise} - {activity.value} {EXERCISES.find(ex => ex.name === activity.exercise)?.unit}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {format(new Date(activity.date), 'EEEE d MMMM yyyy', { locale: fr })}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <span className="font-bold text-orange-400">{activity.points} pts</span>
+                        <button
+                          onClick={() => confirmDeleteActivity(activity)}
+                          className="text-red-500 hover:text-red-400 transition-colors"
+                        >
+                          <HiX size={20} />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-400 text-center">Aucune activité enregistrée pour ce joueur.</p>
+              )}
             </div>
           </div>
-        )}
+        );
 
-        {/* Modale d'édition d'activité */}
-        {isEditingActivity && (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-              <h3 className="text-2xl font-bold text-white mb-4">Modifier l'activité de {selectedPlayer.name}</h3>
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label htmlFor="edit-exercise" className="block text-gray-400 mb-2">Exercice</label>
-                  <select
-                    id="edit-exercise"
-                    value={selectedExercise}
-                    onChange={(e) => setSelectedExercise(e.target.value)}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    {EXERCISES.map((ex) => (
-                      <option key={ex.name} value={ex.name}>{ex.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="edit-value" className="block text-gray-400 mb-2">Valeur ({EXERCISES.find(ex => ex.name === selectedExercise)?.unit})</label>
-                  <input
-                    id="edit-value"
-                    type="number"
-                    value={activityValue}
-                    onChange={(e) => setActivityValue(e.target.value)}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="edit-date" className="block text-gray-400 mb-2">Date</label>
-                  <input
-                    id="edit-date"
-                    type="date"
-                    value={activityDate}
-                    onChange={(e) => setActivityDate(e.target.value)}
-                    className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={() => setIsEditingActivity(false)}
-                  disabled={editingActivity}
-                  className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleEditActivity}
-                  disabled={editingActivity}
-                  className="px-6 py-2 bg-orange-500 text-white font-bold rounded-full shadow-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
-                >
-                  {editingActivity ? 'Modification...' : 'Modifier'}
-                </button>
-              </div>
-            </div>
+      default:
+        return null;
+    }
+  };
+
+  if (!isAuthReady) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <p>Connexion en cours...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-white p-4">
+        <h1 className="text-4xl sm:text-5xl font-bold mb-4 text-orange-400">Bienvenue</h1>
+        <p className="text-lg sm:text-xl text-center mb-8 text-gray-300">
+          Connectez-vous pour commencer à gérer vos joueurs et leurs activités.
+        </p>
+        <button
+          onClick={() => { /* La logique de connexion est gérée par le useEffect */ }}
+          className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-colors"
+        >
+          Connexion
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col sm:flex-row">
+      <div className={`fixed inset-y-0 left-0 transform ${menuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out sm:relative sm:translate-x-0 w-64 bg-gray-900 shadow-xl z-50 flex-shrink-0`}>
+        <div className="flex justify-between items-center p-4 border-b border-gray-800 sm:hidden">
+          <h1 className="text-2xl font-bold text-orange-400">
+            Performance App
+          </h1>
+          <button onClick={() => setMenuOpen(false)} className="text-gray-400 hover:text-white">
+            <HiX size={28} />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <h2 className="text-xl font-bold text-gray-300 mb-4">Menu</h2>
+          <div className="space-y-2">
+            <button
+              onClick={() => { setView('accueil'); setMenuOpen(false); }}
+              className={`w-full text-left px-4 py-3 rounded-xl flex items-center transition-colors ${view === 'accueil' ? 'bg-orange-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              <RiDashboardLine size={20} className="mr-3" />
+              <span>Accueil</span>
+            </button>
+            <button
+              onClick={() => { setView('gerer-joueurs'); setMenuOpen(false); }}
+              className={`w-full text-left px-4 py-3 rounded-xl flex items-center transition-colors ${view === 'gerer-joueurs' ? 'bg-orange-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+            >
+              <RiTeamLine size={20} className="mr-3" />
+              <span>Gérer les joueurs</span>
+            </button>
           </div>
-        )}
+          
+          <div className="mt-8 pt-4 border-t border-gray-800">
+            <p className="text-sm text-gray-500 mb-2">Utilisateur : {userId}</p>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-4 py-3 rounded-xl flex items-center transition-colors bg-red-600 text-white hover:bg-red-700"
+            >
+              <LuLogOut size={20} className="mr-3" />
+              <span>Déconnexion</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
-        {/* Modale de confirmation de suppression d'activité */}
-        {isDeletingActivity && (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-                <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
+      <div className="flex-1 flex flex-col">
+        <header className="bg-gray-900 text-white p-4 sm:p-6 flex items-center justify-between shadow-lg sm:hidden">
+          <button onClick={() => setMenuOpen(true)} className="text-gray-300 hover:text-white">
+            <HiMenu size={28} />
+          </button>
+          <h1 className="text-2xl font-bold text-orange-400">
+            Performance App
+          </h1>
+          <div className="w-8"></div>
+        </header>
+
+        <main className="flex-1 p-0">
+          {renderView()}
+        </main>
+        
+        {/* MODIFICATION : Le pied de page affiche maintenant la version 3.8.4 */}
+        <footer className="p-4 text-center text-gray-500 text-sm border-t border-gray-800">
+          Version 3.8.4
+        </footer>
+        
+        {showDeleteConfirmation && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-[100]">
+                <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center transform scale-105">
                     <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression</h3>
                     <p className="text-gray-300 mb-6">
                         Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> pour <span className="font-bold">{selectedPlayer.name}</span> ? Cette action est irréversible.
@@ -730,38 +552,7 @@ const App = () => {
             </div>
         )}
 
-        {/* Modale de confirmation de suppression de joueur */}
-        {isConfirmingDeletePlayer && (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-              <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression du joueur</h3>
-              <p className="text-gray-300 mb-6">
-                Êtes-vous sûr de vouloir supprimer le joueur <span className="font-bold text-orange-400">{playerToDelete.name}</span> et toutes ses activités ? Cette action est irréversible.
-              </p>
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={handleCloseDeletePlayerConfirmation}
-                  disabled={deletingPlayer}
-                  className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleDeletePlayer}
-                  disabled={deletingPlayer}
-                  className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                  {deletingPlayer ? 'Suppression...' : 'Supprimer'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
-      <footer className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-gray-500 text-sm">
-        Version 3.8.2
-      </footer>
     </div>
   );
 };
