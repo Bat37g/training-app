@@ -69,7 +69,7 @@ const EXERCISES = [
 // Composant pour le menu burger
 const BurgerMenu = ({ currentUser, handleLogout, players }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const currentPlayer = players.find(p => p.email === currentUser?.email);
+    const currentPlayer = players.find(p => p.id === currentUser?.uid);
     const totalPoints = currentPlayer ? currentPlayer.totalPoints : 0;
     const progress = Math.min((totalPoints / 200) * 100, 100);
 
@@ -254,12 +254,11 @@ const App = () => {
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
-                // Ajouter le joueur à la collection `players`
+                // Ajouter le joueur à la collection `players` avec l'UID comme ID de document
                 const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
-                await setDoc(doc(playersRef), {
+                await setDoc(doc(playersRef, user.uid), {
                     name: playerName,
                     email: user.email,
-                    activities: [],
                     totalPoints: 0
                 });
                 setLoading(false);
@@ -605,12 +604,12 @@ const App = () => {
             return <LoginScreen />;
         }
 
+        const currentPlayer = players.find(p => p.id === currentUser.uid);
+
         if (selectedPlayer) {
             return <PlayerDetails player={selectedPlayer} onBack={() => setSelectedPlayer(null)} />;
         }
-
-        const currentPlayer = players.find(p => p.email === currentUser.email);
-
+        
         return (
             <>
                 {/* Section d'ajout de joueur, visible uniquement pour les joueurs non enregistrés */}
@@ -624,10 +623,9 @@ const App = () => {
                             if (playerName === '') return;
                             const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
                             try {
-                                await setDoc(doc(playersRef), {
+                                await setDoc(doc(playersRef, currentUser.uid), {
                                     name: playerName,
                                     email: currentUser.email,
-                                    activities: [],
                                     totalPoints: 0
                                 });
                             } catch (error) {
@@ -694,13 +692,13 @@ const App = () => {
                 </div>
                 {/* Message de bienvenue et menu burger alignés à droite */}
                 <div className="flex items-center space-x-4">
-                    {currentUser && players.find(p => p.email === currentUser.email) && (
+                    {currentUser && players.find(p => p.id === currentUser.uid) && (
                         <div className="text-right hidden md:block">
                             <p className="text-sm text-gray-300">Bonjour,</p>
-                            <p className="text-xl font-bold text-orange-400">{players.find(p => p.email === currentUser.email)?.name || 'Utilisateur'}</p>
-                            <div className="mt-2 text-xs text-gray-400">Progression : {players.find(p => p.email === currentUser.email)?.totalPoints.toFixed(1) || 0}/200 pts</div>
+                            <p className="text-xl font-bold text-orange-400">{players.find(p => p.id === currentUser.uid)?.name || 'Utilisateur'}</p>
+                            <div className="mt-2 text-xs text-gray-400">Progression : {players.find(p => p.id === currentUser.uid)?.totalPoints.toFixed(1) || 0}/200 pts</div>
                             <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
-                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.email === currentUser.email)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
+                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.id === currentUser.uid)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                     )}
@@ -713,10 +711,11 @@ const App = () => {
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.6.0</p>
+                <p>Version 3.7.0</p>
             </footer>
         </div>
     );
 };
 
 export default App;
+
