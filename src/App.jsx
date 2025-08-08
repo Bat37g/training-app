@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
 import { 
     getAuth, 
-    signInAnonymously, 
+    signInWithEmailAndPassword, 
     onAuthStateChanged, 
     signOut 
 } from 'firebase/auth';
@@ -16,6 +15,7 @@ import {
     getDoc, 
     deleteDoc 
 } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
 
 // Configuration Firebase
 const firebaseConfig = {
@@ -122,15 +122,7 @@ const App = () => {
         }
 
         const unsub = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                setCurrentUser(user);
-            } else {
-                try {
-                    await signInAnonymously(auth);
-                } catch (error) {
-                    console.error("Erreur lors de l'authentification anonyme:", error);
-                }
-            }
+            setCurrentUser(user);
             setIsAuthReady(true);
         });
 
@@ -244,6 +236,66 @@ const App = () => {
                 console.error("Erreur lors de la déconnexion:", error);
             }
         }
+    };
+
+    // Composant de connexion
+    const LoginScreen = () => {
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [error, setError] = useState('');
+        const [loading, setLoading] = useState(false);
+
+        const handleLogin = async (e) => {
+            e.preventDefault();
+            setError('');
+            setLoading(true);
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                setLoading(false);
+            } catch (err) {
+                console.error("Erreur de connexion:", err);
+                setError("Nom d'utilisateur ou mot de passe incorrect.");
+                setLoading(false);
+            }
+        };
+
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-950 p-4">
+                <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-gray-700">
+                    <h2 className="text-3xl font-bold text-orange-400 mb-6 text-center">Connexion</h2>
+                    <form onSubmit={handleLogin} className="space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">Mot de passe</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full p-3 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                required
+                            />
+                        </div>
+                        {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors disabled:opacity-50"
+                        >
+                            {loading ? 'Connexion...' : 'Se connecter'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
     };
 
     const PlayerDetails = ({ player, onBack }) => {
@@ -472,15 +524,20 @@ const App = () => {
     };
 
     const renderMainContent = () => {
-        if (!currentUser) {
-            // Écran de connexion/chargement
+        if (!isAuthReady) {
+            // Écran de chargement initial de l'authentification
             return (
-                <div className="flex flex-col items-center justify-center text-center p-8">
+                <div className="flex flex-col items-center justify-center min-h-screen text-center p-8">
                     <h2 className="text-3xl font-bold text-orange-400 mb-4">Bienvenue !</h2>
-                    <p className="text-lg text-gray-300">Veuillez patienter pendant que nous vous connectons...</p>
+                    <p className="text-lg text-gray-300">Veuillez patienter pendant le chargement...</p>
                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mt-6"></div>
                 </div>
             );
+        }
+
+        if (!currentUser) {
+            // Écran de connexion si aucun utilisateur n'est connecté
+            return <LoginScreen />;
         }
 
         if (selectedPlayer) {
