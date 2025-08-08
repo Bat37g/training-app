@@ -1,25 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
-// Initialisation de Firebase avec les configurations fournies par l'environnement
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// Votre configuration Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
+  authDomain: "tnt-training.firebaseapp.com",
+  projectId: "tnt-training",
+  storageBucket: "tnt-training.firebasestorage.app",
+  messagingSenderId: "791420900421",
+  appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
+  measurementId: "G-B74Q9T0KMB"
+};
 
+// Initialisation de Firebase
 let app;
 let db;
 let auth;
 let isFirebaseConnected = false;
+const PROJECT_ID = "tnt-training";
 
-if (Object.keys(firebaseConfig).length > 0) {
+// Vérifier que la configuration est bien présente avant d'initialiser
+if (firebaseConfig.apiKey) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
     isFirebaseConnected = true;
-    console.log("Firebase a été initialisé avec succès.");
+    console.log("Firebase a été initialisé avec succès avec la configuration Vercel.");
   } catch (e) {
     console.error("Erreur lors de l'initialisation de Firebase:", e);
   }
@@ -76,7 +85,7 @@ const getExerciseIcon = (exerciseName) => {
 
 
 const App = () => {
-  const [userId, setUserId] = useState(crypto.randomUUID()); 
+  const [userId, setUserId] = useState(null);
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -93,19 +102,14 @@ const App = () => {
   const [deleting, setDeleting] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(isFirebaseConnected);
 
+  // Authentification anonyme au chargement de l'application
   useEffect(() => {
     if (isFirebaseConnected) {
       const initializeAuth = async () => {
         try {
-          // Utilise le token si disponible (dans l'environnement Canvas)
-          // Sinon, utilise la connexion anonyme pour les déploiements publics
-          if (initialAuthToken) {
-            await signInWithCustomToken(auth, initialAuthToken);
-          } else {
-            await signInAnonymously(auth);
-          }
+          await signInAnonymously(auth);
         } catch (error) {
-          console.error("Erreur lors de l'authentification:", error);
+          console.error("Erreur lors de l'authentification anonyme:", error);
           setIsFirebaseReady(false);
         }
       };
@@ -113,22 +117,22 @@ const App = () => {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           setUserId(user.uid);
-          console.log("Utilisateur authentifié:", user.uid);
           setIsFirebaseReady(true);
+          console.log("Utilisateur authentifié de manière anonyme:", user.uid);
         } else {
           setUserId(null);
-          console.log("Utilisateur déconnecté.");
           setIsFirebaseReady(false);
+          console.log("Utilisateur déconnecté.");
         }
       });
       return () => unsubscribe();
     }
   }, []);
 
-  // Utilisation d'un chemin de collection public pour les joueurs
+  // Écoute des changements de la collection de joueurs
   useEffect(() => {
     if (isFirebaseReady && db) {
-      const playersCollectionPath = `artifacts/${appId}/public/data/players`;
+      const playersCollectionPath = `artifacts/${PROJECT_ID}/public/data/players`;
       const usersRef = collection(db, playersCollectionPath);
       const unsubscribe = onSnapshot(usersRef, (snapshot) => {
         const playersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -140,12 +144,12 @@ const App = () => {
       });
       return () => unsubscribe();
     }
-  }, [db, appId, selectedPlayer, isFirebaseReady]);
+  }, [db, isFirebaseReady, selectedPlayer]);
 
-  // Utilisation d'un chemin de collection public pour les activités
+  // Écoute des changements de la collection d'activités
   useEffect(() => {
     if (isFirebaseReady && db && selectedPlayer) {
-      const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
+      const activitiesCollectionPath = `artifacts/${PROJECT_ID}/public/data/players/${selectedPlayer.id}/activities`;
       const playerActivitiesRef = collection(db, activitiesCollectionPath);
       const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
         const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -153,10 +157,9 @@ const App = () => {
       });
       return () => unsubscribe();
     } else if (!isFirebaseReady && selectedPlayer) {
-      // Logique pour le mode local (non persistant)
       setActivities([]);
     }
-  }, [db, appId, selectedPlayer, isFirebaseReady]);
+  }, [db, isFirebaseReady, selectedPlayer]);
 
 
   const calculatePoints = (activity) => {
@@ -184,13 +187,11 @@ const App = () => {
     const playerName = prompt("Entrez le nom du nouveau joueur:");
     if (playerName) {
       if (isFirebaseReady && db) {
-        const playersCollectionPath = `artifacts/${appId}/public/data/players`;
+        const playersCollectionPath = `artifacts/${PROJECT_ID}/public/data/players`;
         const newPlayerRef = doc(collection(db, playersCollectionPath));
         await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
       } else {
-        // En mode local, l'ID utilisateur est un ID généré aléatoirement
-        const newPlayer = { id: Date.now().toString(), name: playerName, createdAt: new Date() };
-        setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
+        alert("Erreur: Connexion à la base de données impossible.");
       }
     }
   };
@@ -224,12 +225,11 @@ const App = () => {
     setLoading(true);
     try {
       if (isFirebaseReady && db && selectedPlayer) {
-        const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
+        const activitiesCollectionPath = `artifacts/${PROJECT_ID}/public/data/players/${selectedPlayer.id}/activities`;
         const activityRef = doc(collection(db, activitiesCollectionPath));
         await setDoc(activityRef, newActivity);
       } else {
-        const newActivityWithId = { id: Date.now().toString(), ...newActivity };
-        setActivities(prevActivities => [...prevActivities, newActivityWithId]);
+        alert('Erreur: Connexion à la base de données impossible.');
       }
       setNewActivity({ date: '', exercise: '', value: '' });
       handleCloseModal();
@@ -258,11 +258,11 @@ const App = () => {
       setDeleting(true);
       try {
         if (isFirebaseReady && db && selectedPlayer) {
-          const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
+          const activitiesCollectionPath = `artifacts/${PROJECT_ID}/public/data/players/${selectedPlayer.id}/activities`;
           const activityRef = doc(db, activitiesCollectionPath, activityToDelete.id);
           await deleteDoc(activityRef);
         } else {
-          setActivities(prevActivities => prevActivities.filter(act => act.id !== activityToDelete.id));
+          alert('Erreur: Connexion à la base de données impossible.');
         }
         handleCloseDeleteConfirmation();
         setMessage('');
@@ -308,7 +308,6 @@ const App = () => {
           )}
         </header>
 
-        {/* Section de gestion des joueurs */}
         <section className="mb-8 p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-teal-400">Joueurs</h2>
@@ -336,7 +335,6 @@ const App = () => {
           </div>
         </section>
 
-        {/* Section d'activités */}
         {selectedPlayer && (
           <section className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
             <div className="flex justify-between items-center mb-4">
@@ -349,7 +347,6 @@ const App = () => {
               </button>
             </div>
 
-            {/* Affichage des points par groupe */}
             <div className="mb-6 space-y-4">
               <h3 className="text-xl font-semibold text-gray-200">Points par groupe:</h3>
               <div className="space-y-3">
@@ -408,7 +405,6 @@ const App = () => {
           </section>
         )}
 
-        {/* Modal pour ajouter une activité */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
@@ -477,7 +473,6 @@ const App = () => {
           </div>
         )}
 
-        {/* Modal de confirmation de suppression */}
         {showDeleteConfirmation && (
             <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                 <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
