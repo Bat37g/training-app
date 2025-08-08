@@ -11,6 +11,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 let app;
 let db;
 let auth;
+let isFirebaseConnected = false;
 
 // Ne pas initialiser si la configuration est manquante
 if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
@@ -18,12 +19,13 @@ if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
+    isFirebaseConnected = true;
     console.log("Firebase a été initialisé avec succès.");
   } catch (e) {
     console.error("Erreur lors de l'initialisation de Firebase:", e);
   }
 } else {
-  console.error("La configuration Firebase est manquante ou le jeton d'authentification est manquant.");
+  console.error("La configuration Firebase est manquante ou le jeton d'authentification est manquant. L'application fonctionnera en mode local (non-persistant).");
 }
 
 // Les exercices sont maintenant associés à des groupes spécifiques basés sur le document PDF
@@ -47,8 +49,7 @@ const EXERCISES = [
 ];
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState(crypto.randomUUID()); // Génère un ID utilisateur aléatoire si Firebase n'est pas connecté
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -63,62 +64,44 @@ const App = () => {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+  const [isFirebaseReady, setIsFirebaseReady] = useState(isFirebaseConnected);
 
+  // Gère l'authentification Firebase si elle est disponible
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        if (!auth) {
-            console.error("L'instance d'authentification n'est pas disponible. Vérifiez la configuration Firebase.");
-            setIsFirebaseReady(false);
-            return;
+    if (isFirebaseConnected) {
+      const initializeAuth = async () => {
+        try {
+          if (initialAuthToken) {
+            await signInWithCustomToken(auth, initialAuthToken);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("Erreur lors de l'authentification:", error);
+          setIsFirebaseReady(false);
         }
-        
-        if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
-        } else {
-          await signInAnonymously(auth);
-        }
-        setIsFirebaseReady(true);
-      } catch (error) {
-        console.error("Erreur lors de l'authentification:", error);
-        setIsFirebaseReady(false);
-      }
-    };
-    if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
+      };
       initializeAuth();
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user) {
+          setUserId(user.uid);
+          console.log("Utilisateur authentifié:", user.uid);
+        } else {
+          setUserId(null);
+          console.log("Utilisateur déconnecté.");
+        }
+      });
+      return () => unsubscribe();
     }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!auth) {
-      console.log("L'instance d'authentification n'est pas prête.");
-      return;
-    }
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAuthenticated(true);
-        setUserId(user.uid);
-        console.log("Utilisateur authentifié:", user.uid);
-      } else {
-        setIsAuthenticated(false);
-        setUserId(null);
-        console.log("Utilisateur déconnecté.");
-      }
-    });
-
-    return () => unsubscribe();
   }, []);
 
-
+  // Gère la récupération des joueurs, soit depuis Firebase, soit en mode local
   useEffect(() => {
-    if (db && userId && isFirebaseReady) {
+    if (isFirebaseConnected && db && userId) {
       const usersRef = collection(db, 'artifacts', appId, 'users', userId, 'players');
       const unsubscribe = onSnapshot(usersRef, (snapshot) => {
         const playersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setPlayers(playersList);
-
-        // Si le joueur sélectionné n'est plus dans la liste, le désélectionner
         if (selectedPlayer && !playersList.some(p => p.id === selectedPlayer.id)) {
           setSelectedPlayer(null);
           setActivities([]);
@@ -128,8 +111,9 @@ const App = () => {
     }
   }, [db, userId, appId, selectedPlayer, isFirebaseReady]);
 
+  // Gère la récupération des activités, soit depuis Firebase, soit en mode local
   useEffect(() => {
-    if (db && userId && selectedPlayer && isFirebaseReady) {
+    if (isFirebaseConnected && db && userId && selectedPlayer) {
       const playerActivitiesRef = collection(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities');
       const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
         const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -137,7 +121,12 @@ const App = () => {
       });
       return () => unsubscribe();
     } else {
-      setActivities([]);
+      // Logique pour le mode local (non persistant)
+      if (selectedPlayer) {
+        // Dans ce mode, les activités ne sont pas persistantes, donc on les vide.
+        // Pour un test, on pourrait les stocker dans un état local, mais ce n'est pas nécessaire ici.
+        setActivities([]);
+      }
     }
   }, [db, userId, appId, selectedPlayer, isFirebaseReady]);
 
@@ -165,11 +154,15 @@ const App = () => {
 
   const handleAddPlayer = async () => {
     const playerName = prompt("Entrez le nom du nouveau joueur:");
-    if (playerName && db && userId && isFirebaseReady) {
-      const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players'));
-      await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
-    } else if (!isFirebaseReady) {
-        alert("L'application n'est pas encore connectée. Veuillez patienter ou vérifier votre configuration.");
+    if (playerName) {
+      if (isFirebaseConnected && db && userId) {
+        const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players'));
+        await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
+      } else {
+        // Logique pour le mode local (non persistant)
+        const newPlayer = { id: Date.now().toString(), name: playerName, createdAt: new Date() };
+        setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
+      }
     }
   };
 
@@ -201,8 +194,14 @@ const App = () => {
     }
     setLoading(true);
     try {
-      const activityRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities'));
-      await setDoc(activityRef, newActivity);
+      if (isFirebaseConnected && db && userId && selectedPlayer) {
+        const activityRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities'));
+        await setDoc(activityRef, newActivity);
+      } else {
+        // Logique pour le mode local (non persistant)
+        const newActivityWithId = { id: Date.now().toString(), ...newActivity };
+        setActivities(prevActivities => [...prevActivities, newActivityWithId]);
+      }
       setNewActivity({ date: '', exercise: '', value: '' });
       handleCloseModal();
       setMessage('');
@@ -226,11 +225,16 @@ const App = () => {
   };
 
   const handleDeleteActivity = async () => {
-    if (activityToDelete && db && userId && selectedPlayer && isFirebaseReady) {
+    if (activityToDelete) {
       setDeleting(true);
       try {
-        const activityRef = doc(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities', activityToDelete.id);
-        await deleteDoc(activityRef); // Utiliser deleteDoc pour une suppression permanente
+        if (isFirebaseConnected && db && userId && selectedPlayer) {
+          const activityRef = doc(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities', activityToDelete.id);
+          await deleteDoc(activityRef);
+        } else {
+          // Logique pour le mode local (non persistant)
+          setActivities(prevActivities => prevActivities.filter(act => act.id !== activityToDelete.id));
+        }
         handleCloseDeleteConfirmation();
         setMessage('');
       } catch (error) {
@@ -252,7 +256,7 @@ const App = () => {
           <p className="text-gray-400">ID Utilisateur: {userId ? userId : 'En attente...'}</p>
           {!isFirebaseReady && (
             <p className="text-red-400 text-sm mt-2">
-                Erreur: L'application n'est pas connectée à la base de données.
+                Erreur: L'application n'est pas connectée à la base de données. Les données ne sont pas persistantes.
             </p>
           )}
         </header>
@@ -264,7 +268,6 @@ const App = () => {
             <button
               onClick={handleAddPlayer}
               className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors"
-              disabled={!isFirebaseReady}
             >
               Ajouter un joueur
             </button>
@@ -294,7 +297,6 @@ const App = () => {
               <button
                 onClick={handleOpenModal}
                 className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors"
-                disabled={!isFirebaseReady}
               >
                 Ajouter une activité
               </button>
