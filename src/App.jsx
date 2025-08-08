@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
-// J'ai mis à jour cette section avec les informations que vous avez fournies.
 const firebaseConfig = {
   apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
   authDomain: "tnt-training.firebaseapp.com",
@@ -31,7 +30,6 @@ try {
   console.error("Erreur lors de l'initialisation de Firebase:", e);
 }
 
-
 // Les exercices sont maintenant associés à des groupes spécifiques basés sur le document PDF
 const EXERCISES = [
   { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 3' },
@@ -47,13 +45,11 @@ const EXERCISES = [
   { name: 'Vélo (VTT)', points: 7, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
   { name: 'Basket (Salle/Extérieur)', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe 2' },
   { name: 'Sport de raquettes', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe 2' },
-  { name: 'Autres sports', points: 10, unit: 'minutes', pointsPer: 30, group: 'Autres' }, // 'Autres' pour les sports qui ne rentrent pas dans les 3 groupes
+  { name: 'Autres sports', points: 10, unit: 'minutes', pointsPer: 30, group: 'Autres' },
   { name: 'Corde à sauter', points: 3, unit: 'minutes', pointsPer: 1, group: 'Autres' },
   { name: 'Sport nautique (Canoë, Kayak, Ski nautique)', points: 10, unit: 'minutes', pointsPer: 30, group: 'Autres' },
 ];
 
-// Bibliothèque date-fns est nécessaire pour cette fonction
-// Le déploiement échouera sans la dépendance dans package.json
 const getWeekNumber = (d) => {
   d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -62,7 +58,6 @@ const getWeekNumber = (d) => {
   return weekNo;
 };
 
-// Fonction pour déterminer la couleur de la barre de progression en fonction des points
 const getBackgroundColor = (points, goal) => {
   const percentage = (points / goal) * 100;
   if (percentage >= 100) return 'bg-orange-500';
@@ -75,7 +70,7 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Nouveau état pour la connexion
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(EXERCISES[0]);
   const [quantity, setQuantity] = useState('');
   const [playerName, setPlayerName] = useState('');
@@ -97,19 +92,13 @@ const App = () => {
     }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
-        if (!user) {
-          setIsLoggedIn(false);
-          if (initialAuthToken) {
-            await signInWithCustomToken(auth, initialAuthToken);
-            console.log("Authentification avec token personnalisée réussie.");
-          } else {
-            await signInAnonymously(auth);
-            console.log("Authentification anonyme réussie.");
-          }
-        }
-        if (auth.currentUser) {
-          setUserId(auth.currentUser.uid);
+        if (user) {
+          setUserId(user.uid);
           setIsLoggedIn(true);
+        } else {
+          // Si il n'y a pas d'utilisateur, l'app reste sur la page de connexion
+          setIsLoggedIn(false);
+          setUserId(null);
         }
         setIsAuthReady(true);
       } catch (error) {
@@ -119,12 +108,13 @@ const App = () => {
       }
     });
     return () => unsubscribe();
-  }, [auth, initialAuthToken]);
+  }, [auth]);
 
   // Écoute des données de Firestore en temps réel
   useEffect(() => {
     if (!db || !isAuthReady || errorMessage || !isLoggedIn) {
-      console.log("Firestore non prêt, ne pas écouter les données.");
+      console.log("Firestore non prêt ou non connecté, ne pas écouter les données.");
+      setLoading(false);
       return;
     }
 
@@ -158,18 +148,34 @@ const App = () => {
     try {
       const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerName.toLowerCase());
       const playerDoc = await getDoc(playerDocRef);
+
       if (!playerDoc.exists()) {
-        const newPlayer = {
-          name: playerName,
-          dailyPoints: {},
-          weeklyPoints: {},
-          groupPoints: {},
-          allActivities: [],
-        };
-        await setDoc(playerDocRef, newPlayer);
-        console.log("Nouveau joueur créé :", playerName);
+          // Crée un nouveau profil
+          const newPlayer = {
+              name: playerName,
+              dailyPoints: {},
+              weeklyPoints: {},
+              groupPoints: {},
+              allActivities: [],
+              lastLogin: new Date().toISOString()
+          };
+          await setDoc(playerDocRef, newPlayer);
+          console.log("Nouveau joueur créé :", playerName);
+      } else {
+          // Met à jour le profil existant
+          await updateDoc(playerDocRef, { lastLogin: new Date().toISOString() });
+          console.log("Connexion réussie pour le joueur :", playerName);
       }
+
+      // Utilisation du token d'authentification
+      // Note: Le système génère ce token, il n'est pas géré par l'utilisateur
+      if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
+      }
+
       setIsLoggedIn(true);
+      setMessage("Connexion réussie !");
+
     } catch (e) {
       console.error("Erreur de connexion/création du joueur:", e);
       setMessage("Erreur lors de la connexion. Veuillez réessayer.");
@@ -189,7 +195,6 @@ const App = () => {
     }
   };
 
-  // Fonction pour ajouter un entraînement
   const handleAddTraining = async () => {
     if (!playerName || !quantity) {
       setMessage("Veuillez remplir le nom du joueur et la quantité.");
@@ -207,7 +212,6 @@ const App = () => {
     try {
       const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerName.toLowerCase());
       const playerDoc = await getDoc(playerDocRef);
-      // Ajout d'un timestamp pour avoir un identifiant unique par activité
       const newTraining = {
         exercise: exerciseName,
         quantity: parseFloat(quantity),
@@ -261,13 +265,11 @@ const App = () => {
       const data = selectedPlayer;
       const activity = activityToDelete;
 
-      // Calcul des points à soustraire
       const pointsToSubtract = activity.points;
       const groupName = activity.group;
       const date = activity.date;
       const currentWeek = getWeekNumber(new Date(date));
 
-      // Mise à jour des points
       const updatedWeeklyPoints = { ...data.weeklyPoints, [currentWeek]: (data.weeklyPoints?.[currentWeek] || 0) - pointsToSubtract };
 
       const updatedGroupPoints = { ...data.groupPoints };
@@ -303,7 +305,6 @@ const App = () => {
     }
   };
 
-
   const getTotalWeeklyPoints = (player) => {
     const currentWeek = getWeekNumber(new Date());
     return player.weeklyPoints ? (player.weeklyPoints[currentWeek] || 0) : 0;
@@ -317,7 +318,6 @@ const App = () => {
   const sortedPlayers = [...players].sort((a, b) => getTotalWeeklyPoints(b) - getTotalWeeklyPoints(a));
 
   const handleOpenModal = () => {
-    setPlayerName('');
     setQuantity('');
     setMessage('');
     setShowModal(true);
@@ -343,7 +343,7 @@ const App = () => {
       setShowDeleteConfirmation(false);
   };
 
-  if (loading && !errorMessage) {
+  if (loading && !errorMessage && isAuthReady) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
         <div className="text-xl">Chargement...</div>
@@ -362,7 +362,6 @@ const App = () => {
       );
   }
 
-  // Afficher la page de connexion si l'utilisateur n'est pas connecté
   if (!isLoggedIn) {
       return (
           <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
@@ -402,7 +401,6 @@ const App = () => {
     return acc;
   }, {}) : {};
 
-  // Fonction pour obtenir l'emoji basé sur le total de points
   const getEmoji = (points) => {
     if (points >= 200) return '🎉';
     if (points >= 150) return '💪';
@@ -413,7 +411,6 @@ const App = () => {
 
   const sortedDays = Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a));
 
-  // Composant de jauge de progression
   const ProgressBarGauge = ({ points, goal, title }) => {
     const percentage = Math.min(100, (points / goal) * 100);
     const progressColor = getBackgroundColor(points, goal);
@@ -441,7 +438,7 @@ const App = () => {
 
 
   return (
-    <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans">
+    <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
       <div className="max-w-4xl mx-auto">
         <header className="flex justify-between items-center mb-6">
             <h1 className="text-3xl sm:text-4xl font-bold text-orange-400 flex items-center">
@@ -464,18 +461,18 @@ const App = () => {
           *Note: L'ID de session est <span className="font-mono text-sm break-all">{userId}</span>
         </p>
 
-        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
           <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de l'équipe (semaine en cours)</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <div className="w-full">
+            <table className="w-full text-left min-w-[700px]">
               <thead>
                 <tr className="bg-gray-800">
                   <th className="p-3 rounded-tl-xl">Rang</th>
                   <th className="p-3">Joueur</th>
                   <th className="p-3">Points Totaux</th>
-                  <th className="p-3">Groupe 1 (Course/Vélo/Natation)</th>
-                  <th className="p-3">Groupe 2 (Sports collectifs)</th>
-                  <th className="p-3 rounded-tr-xl">Groupe 3 (Gainage/Étirements/Abdos)</th>
+                  <th className="p-3">Groupe 1</th>
+                  <th className="p-3">Groupe 2</th>
+                  <th className="p-3 rounded-tr-xl">Groupe 3</th>
                 </tr>
               </thead>
               <tbody>
@@ -550,7 +547,7 @@ const App = () => {
 
         {showModal && (
           <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-orange-500 shadow-xl">
+            <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h3>
               <div className="space-y-4">
                 <div>
@@ -621,7 +618,6 @@ const App = () => {
             <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-2xl border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-semibold mb-4 text-orange-400">Synthèse des entraînements de {selectedPlayer.name}</h3>
 
-              {/* Jauge de progression des points hebdomadaires */}
               <div className="mb-6">
                 <ProgressBarGauge
                   points={getTotalWeeklyPoints(selectedPlayer)}
