@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 // Initialisation de Firebase avec les configurations fournies par l'environnement
+// Si la configuration est manquante, on utilise un objet de secours avec les informations fournies.
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
   authDomain: "tnt-training.firebaseapp.com",
@@ -28,7 +29,8 @@ let db;
 let auth;
 let isFirebaseConnected = false;
 
-if (Object.keys(firebaseConfig).length > 0) {
+// Initialiser Firebase seulement si les configurations sont fournies
+if (Object.keys(firebaseConfig).length > 0 && firebaseConfig.apiKey) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
@@ -39,7 +41,7 @@ if (Object.keys(firebaseConfig).length > 0) {
     console.error("Erreur lors de l'initialisation de Firebase:", e);
   }
 } else {
-  console.error("La configuration Firebase est manquante. L'application fonctionnera en mode local (non-persistant).");
+  console.warn("La configuration Firebase est manquante. L'application fonctionnera en mode local (non-persistant).");
 }
 
 const EXERCISES = [
@@ -519,7 +521,6 @@ const App = () => {
           {renderView()}
         </main>
         
-        {/* MODIFICATION : Le pied de page affiche maintenant la version 3.8.4 */}
         <footer className="p-4 text-center text-gray-500 text-sm border-t border-gray-800">
           Version 3.8.4
         </footer>
