@@ -13,7 +13,6 @@ let db;
 let auth;
 let isFirebaseConnected = false;
 
-// Ne pas initialiser si la configuration est manquante
 if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
   try {
     app = initializeApp(firebaseConfig);
@@ -28,7 +27,6 @@ if (Object.keys(firebaseConfig).length > 0 && initialAuthToken) {
   console.error("La configuration Firebase est manquante ou le jeton d'authentification est manquant. L'application fonctionnera en mode local (non-persistant).");
 }
 
-// Les exercices sont maintenant associés à des groupes spécifiques basés sur le document PDF
 const EXERCISES = [
   { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 3' },
   { name: 'Gainage (Statique/Dynamique)', points: 2, unit: 'secondes', pointsPer: 30, group: 'Groupe 3' },
@@ -48,8 +46,37 @@ const EXERCISES = [
   { name: 'Abdominaux', points: 2, unit: 'séries', pointsPer: 10, group: 'Groupe 3' }
 ];
 
+const getGroupGoals = () => ({
+  'Groupe 1': { goal: 50, color: 'bg-orange-500' },
+  'Groupe 2': { goal: 50, color: 'bg-sky-500' },
+  'Groupe 3': { goal: 50, color: 'bg-violet-500' },
+});
+
+const getExerciseIcon = (exerciseName) => {
+  switch (exerciseName) {
+    case 'Basket': return '🏀';
+    case 'Corde à sauter': return '🤸‍♀️';
+    case 'Course à pied (piste)':
+    case 'Course à pied (forêt)':
+    case 'Course à pied (plage)': return '🏃';
+    case 'Natation (piscine)':
+    case 'Natation (mer)': return '🏊';
+    case 'Sport nautique': return '⛵';
+    case 'Sport de raquettes': return '🏸';
+    case 'Vélo (Elliptique/Appartement)':
+    case 'Vélo (Route)':
+    case 'Vélo (VTT)': return '🚴‍♀️';
+    case 'Étirements': return '🧘‍♀️';
+    case 'Gainage (Statique/Dynamique)': return '💪';
+    case 'Abdominaux': return '🤸';
+    case 'Autres sports': return '🏆';
+    default: return '✅';
+  }
+};
+
+
 const App = () => {
-  const [userId, setUserId] = useState(crypto.randomUUID()); // Génère un ID utilisateur aléatoire si Firebase n'est pas connecté
+  const [userId, setUserId] = useState(crypto.randomUUID());
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -66,7 +93,6 @@ const App = () => {
   const [deleting, setDeleting] = useState(false);
   const [isFirebaseReady, setIsFirebaseReady] = useState(isFirebaseConnected);
 
-  // Gère l'authentification Firebase si elle est disponible
   useEffect(() => {
     if (isFirebaseConnected) {
       const initializeAuth = async () => {
@@ -95,7 +121,6 @@ const App = () => {
     }
   }, []);
 
-  // Gère la récupération des joueurs, soit depuis Firebase, soit en mode local
   useEffect(() => {
     if (isFirebaseConnected && db && userId) {
       const usersRef = collection(db, 'artifacts', appId, 'users', userId, 'players');
@@ -111,7 +136,6 @@ const App = () => {
     }
   }, [db, userId, appId, selectedPlayer, isFirebaseReady]);
 
-  // Gère la récupération des activités, soit depuis Firebase, soit en mode local
   useEffect(() => {
     if (isFirebaseConnected && db && userId && selectedPlayer) {
       const playerActivitiesRef = collection(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities');
@@ -121,10 +145,7 @@ const App = () => {
       });
       return () => unsubscribe();
     } else {
-      // Logique pour le mode local (non persistant)
       if (selectedPlayer) {
-        // Dans ce mode, les activités ne sont pas persistantes, donc on les vide.
-        // Pour un test, on pourrait les stocker dans un état local, mais ce n'est pas nécessaire ici.
         setActivities([]);
       }
     }
@@ -159,7 +180,6 @@ const App = () => {
         const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players'));
         await setDoc(newPlayerRef, { name: playerName, createdAt: new Date() });
       } else {
-        // Logique pour le mode local (non persistant)
         const newPlayer = { id: Date.now().toString(), name: playerName, createdAt: new Date() };
         setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
       }
@@ -198,7 +218,6 @@ const App = () => {
         const activityRef = doc(collection(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities'));
         await setDoc(activityRef, newActivity);
       } else {
-        // Logique pour le mode local (non persistant)
         const newActivityWithId = { id: Date.now().toString(), ...newActivity };
         setActivities(prevActivities => [...prevActivities, newActivityWithId]);
       }
@@ -232,7 +251,6 @@ const App = () => {
           const activityRef = doc(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities', activityToDelete.id);
           await deleteDoc(activityRef);
         } else {
-          // Logique pour le mode local (non persistant)
           setActivities(prevActivities => prevActivities.filter(act => act.id !== activityToDelete.id));
         }
         handleCloseDeleteConfirmation();
@@ -248,12 +266,30 @@ const App = () => {
     }
   };
 
+  const renderProgressBar = (groupName) => {
+    const { goal, color } = getGroupGoals()[groupName];
+    const points = getGroupPoints(groupName);
+    const progress = Math.min((points / goal) * 100, 100);
+    return (
+      <div className="flex items-center space-x-2 w-full">
+        <div className="w-full bg-gray-600 rounded-full h-2.5">
+          <div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${progress}%` }}></div>
+        </div>
+        <span className="text-sm font-medium text-white">{points.toFixed(1)} / {goal} Pts</span>
+      </div>
+    );
+  };
+
+  const totalPoints = getTotalPoints();
+  const totalGoal = 200;
+  const totalProgress = Math.min((totalPoints / totalGoal) * 100, 100);
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
+    <div className="min-h-screen bg-gray-950 text-white p-4 font-sans">
       <div className="container mx-auto max-w-4xl">
         <header className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-teal-400">Suivi d'activités TNT U12</h1>
-          <p className="text-gray-400">ID Utilisateur: {userId ? userId : 'En attente...'}</p>
+          <h1 className="text-4xl font-extrabold text-white tracking-wider">Suivi d'activités TNT U12</h1>
+          <p className="text-gray-400 mt-2">ID Utilisateur: {userId ? userId : 'En attente...'}</p>
           {!isFirebaseReady && (
             <p className="text-red-400 text-sm mt-2">
                 Erreur: L'application n'est pas connectée à la base de données. Les données ne sont pas persistantes.
@@ -262,24 +298,24 @@ const App = () => {
         </header>
 
         {/* Section de gestion des joueurs */}
-        <section className="mb-8 p-6 bg-gray-800 rounded-xl shadow-lg">
+        <section className="mb-8 p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-200">Joueurs</h2>
+            <h2 className="text-xl font-bold text-teal-400">Joueurs</h2>
             <button
               onClick={handleAddPlayer}
-              className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors"
+              className="px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold rounded-full shadow-lg hover:from-orange-600 hover:to-amber-600 transition-all duration-300 transform hover:scale-105"
             >
               Ajouter un joueur
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-4">
             {players.map(player => (
               <button
                 key={player.id}
                 onClick={() => handleSelectPlayer(player)}
-                className={`px-4 py-2 rounded-full transition-colors ${
+                className={`px-6 py-3 rounded-full shadow-md transition-all duration-300 ${
                   selectedPlayer && selectedPlayer.id === player.id
-                    ? 'bg-teal-500 text-white'
+                    ? 'bg-blue-600 text-white font-bold transform scale-105'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
@@ -291,56 +327,60 @@ const App = () => {
 
         {/* Section d'activités */}
         {selectedPlayer && (
-          <section className="p-6 bg-gray-800 rounded-xl shadow-lg">
+          <section className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-teal-400">{selectedPlayer.name}</h2>
               <button
                 onClick={handleOpenModal}
-                className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors"
+                className="px-6 py-2 bg-gradient-to-r from-blue-500 to-sky-500 text-white font-bold rounded-full shadow-lg hover:from-blue-600 hover:to-sky-600 transition-all duration-300 transform hover:scale-105"
               >
                 Ajouter une activité
               </button>
             </div>
 
             {/* Affichage des points par groupe */}
-            <div className="mb-4 text-center">
-              <h3 className="text-lg font-semibold text-gray-200 mb-2">Points par groupe:</h3>
-              <div className="flex justify-center gap-4 text-sm font-medium">
-                <span className={`p-2 rounded-lg ${getGroupPoints('Groupe 1') >= 50 ? 'bg-green-600' : 'bg-red-600'}`}>
-                  Groupe 1: {getGroupPoints('Groupe 1')} / 50
-                </span>
-                <span className={`p-2 rounded-lg ${getGroupPoints('Groupe 2') >= 50 ? 'bg-green-600' : 'bg-red-600'}`}>
-                  Groupe 2: {getGroupPoints('Groupe 2')} / 50
-                </span>
-                <span className={`p-2 rounded-lg ${getGroupPoints('Groupe 3') >= 50 ? 'bg-green-600' : 'bg-red-600'}`}>
-                  Groupe 3: {getGroupPoints('Groupe 3')} / 50
-                </span>
+            <div className="mb-6 space-y-4">
+              <h3 className="text-xl font-semibold text-gray-200">Points par groupe:</h3>
+              <div className="space-y-3">
+                {Object.keys(getGroupGoals()).map(groupName => (
+                  <div key={groupName}>
+                    <p className="text-gray-300 font-medium mb-1">{groupName}</p>
+                    {renderProgressBar(groupName)}
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="text-center mb-4 p-4 bg-gray-700 rounded-lg">
-              <span className="text-xl font-bold text-white">
-                Total des points: {getTotalPoints()}
-              </span>
-              <p className="text-sm text-gray-400">Objectif: 200 points par semaine minimum</p>
-              {getTotalPoints() >= 200 ? (
-                <span className="text-green-400 text-sm font-semibold">Objectif atteint !</span>
+            <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-inner border border-gray-700">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xl font-bold text-white">Total des points</span>
+                <span className="text-3xl font-extrabold text-teal-400">{totalPoints.toFixed(1)} Pts</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-4">
+                <div className={`bg-gradient-to-r from-teal-400 to-cyan-500 h-4 rounded-full transition-all duration-500`} style={{ width: `${totalProgress}%` }}></div>
+              </div>
+              <p className="text-sm text-gray-400 mt-2">Objectif: {totalGoal} points par semaine minimum</p>
+              {totalPoints >= totalGoal ? (
+                <span className="text-green-400 text-sm font-semibold mt-1">Objectif atteint !</span>
               ) : (
-                <span className="text-red-400 text-sm font-semibold">Objectif non atteint.</span>
+                <span className="text-red-400 text-sm font-semibold mt-1">Objectif non atteint.</span>
               )}
             </div>
 
             {activities.length > 0 ? (
               <div className="space-y-4">
                 {activities.map(activity => (
-                  <div key={activity.id} className="bg-gray-700 p-4 rounded-xl shadow flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-300 text-sm">Date: <span className="font-semibold text-white">{activity.date}</span></p>
-                      <p className="text-lg font-bold text-teal-400">{activity.exercise}</p>
-                      <p className="text-gray-300 text-sm">{activity.value} {EXERCISES.find(e => e.name === activity.exercise)?.unit}</p>
+                  <div key={activity.id} className="bg-gray-800 p-4 rounded-xl shadow-md flex items-center justify-between border border-gray-700">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-3xl">{getExerciseIcon(activity.exercise)}</span>
+                      <div>
+                        <p className="text-gray-300 text-sm">Date: <span className="font-semibold text-white">{activity.date}</span></p>
+                        <p className="text-lg font-bold text-teal-400">{activity.exercise}</p>
+                        <p className="text-gray-300 text-sm">{activity.value} {EXERCISES.find(e => e.name === activity.exercise)?.unit}</p>
+                      </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-extrabold text-white">{calculatePoints(activity)} Pts</p>
+                      <p className="text-2xl font-extrabold text-white">{calculatePoints(activity).toFixed(1)} Pts</p>
                       <button
                         onClick={() => handleOpenDeleteConfirmation(activity)}
                         className="text-red-400 hover:text-red-500 transition-colors text-sm font-semibold mt-2"
@@ -352,37 +392,37 @@ const App = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-center text-gray-400">Aucune activité enregistrée pour ce joueur.</p>
+              <p className="text-center text-gray-400 italic">Aucune activité enregistrée pour ce joueur.</p>
             )}
           </section>
         )}
 
         {/* Modal pour ajouter une activité */}
         {isModalOpen && (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
-            <div className="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md">
-              <h3 className="text-2xl font-bold text-white mb-4">Ajouter une activité pour {selectedPlayer.name}</h3>
+          <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
+              <h3 className="text-2xl font-bold text-teal-400 mb-6">Ajouter une activité pour {selectedPlayer.name}</h3>
               {message && <p className="text-sm text-center text-red-400 mb-4">{message}</p>}
               <form onSubmit={handleAddActivity} className="space-y-4">
                 <div>
-                  <label htmlFor="date" className="block text-sm font-medium text-gray-300">Date</label>
+                  <label htmlFor="date" className="block text-sm font-medium text-gray-300 mb-1">Date</label>
                   <input
                     type="date"
                     id="date"
                     name="date"
                     value={newActivity.date}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                    className="block w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
                 <div>
-                  <label htmlFor="exercise" className="block text-sm font-medium text-gray-300">Activité</label>
+                  <label htmlFor="exercise" className="block text-sm font-medium text-gray-300 mb-1">Activité</label>
                   <select
                     id="exercise"
                     name="exercise"
                     value={newActivity.exercise}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                    className="block w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     <option value="" disabled>Sélectionner une activité</option>
                     {EXERCISES.map(ex => (
@@ -393,30 +433,30 @@ const App = () => {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="value" className="block text-sm font-medium text-gray-300">Valeur ({newActivity.exercise ? EXERCISES.find(e => e.name === newActivity.exercise)?.unit : 'Unité'})</label>
+                  <label htmlFor="value" className="block text-sm font-medium text-gray-300 mb-1">Valeur ({newActivity.exercise ? EXERCISES.find(e => e.name === newActivity.exercise)?.unit : 'Unité'})</label>
                   <input
                     type="number"
                     id="value"
                     name="value"
                     value={newActivity.value}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                    className="block w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
                     placeholder="Ex: 5, 30, 250"
                   />
                 </div>
-                <div className="flex justify-end space-x-4">
+                <div className="flex justify-end space-x-4 mt-6">
                   <button
                     type="button"
                     onClick={handleCloseModal}
                     disabled={loading}
-                    className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors disabled:opacity-50"
+                    className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
                   >
                     Annuler
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 bg-teal-500 text-white font-bold rounded-full hover:bg-teal-600 transition-colors disabled:opacity-50"
+                    className="px-6 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-bold rounded-full shadow-lg hover:from-teal-600 hover:to-cyan-600 transition-all duration-300 disabled:opacity-50"
                   >
                     {loading ? 'Ajout...' : 'Ajouter'}
                   </button>
@@ -428,25 +468,25 @@ const App = () => {
 
         {/* Modal de confirmation de suppression */}
         {showDeleteConfirmation && (
-            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4">
-                <div className="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md">
+            <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
                     <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression</h3>
-                    <p className="text-gray-300 mb-4">
-                        Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> pour <span className="font-bold">{selectedPlayer.name}</span> ? Cette action est irréversible.
+                    <p className="text-gray-300 mb-6">
+                        Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> pour <span className="font-bold">{selectedPlayer.name}</span> ? Cette action est irréversible.
                     </p>
                     {message && <p className="text-sm text-center text-red-400 mb-4">Erreur: {message}</p>}
                     <div className="flex justify-end space-x-4">
                         <button
                             onClick={handleCloseDeleteConfirmation}
                             disabled={deleting}
-                            className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors disabled:opacity-50"
+                            className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
                         >
                             Annuler
                         </button>
                         <button
                             onClick={handleDeleteActivity}
                             disabled={deleting}
-                            className="px-4 py-2 bg-red-500 text-white font-bold rounded-full hover:bg-red-600 transition-colors disabled:opacity-50"
+                            className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                         >
                             {deleting ? 'Suppression...' : 'Supprimer'}
                         </button>
