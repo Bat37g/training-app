@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
     getAuth, 
+    signInAnonymously, 
     onAuthStateChanged, 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
     signOut 
 } from 'firebase/auth';
 import { 
@@ -15,10 +14,7 @@ import {
     collection, 
     updateDoc, 
     getDoc, 
-    deleteDoc, 
-    query, 
-    orderBy,
-    getDocs
+    deleteDoc 
 } from 'firebase/firestore';
 
 // Configuration Firebase
@@ -31,7 +27,7 @@ const firebaseConfig = {
   appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
   measurementId: "G-B74Q9T0KMB"
 };
-const appId = firebaseConfig.appId.split(':')[1];
+const appID = firebaseConfig.appId.split(':')[1];
 
 // Initialisation de Firebase
 let app;
@@ -49,7 +45,7 @@ try {
   console.error("Erreur lors de l'initialisation de Firebase:", e);
 }
 
-// Liste des exercices
+// Liste des exercices et leurs points
 const EXERCISES = [
   { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 3' },
   { name: 'Gainage (Statique/Dynamique)', points: 2, unit: 'secondes', pointsPer: 30, group: 'Groupe 3' },
@@ -69,558 +65,334 @@ const EXERCISES = [
   { name: 'Abdominaux', points: 2, unit: 'séries', pointsPer: 10, group: 'Groupe 3' }
 ];
 
-const getGroupGoals = () => ({
-  'Groupe 1': { goal: 50, color: 'bg-orange-500' },
-  'Groupe 2': { goal: 50, color: 'bg-sky-500' },
-  'Groupe 3': { goal: 50, color: 'bg-violet-500' },
-});
-
-const getExerciseIcon = (exerciseName) => {
-  switch (exerciseName) {
-    case 'Basket': return '🏀';
-    case 'Corde à sauter': return '🤸‍♀️';
-    case 'Course à pied (piste)':
-    case 'Course à pied (forêt)':
-    case 'Course à pied (plage)': return '🏃';
-    case 'Natation (piscine)':
-    case 'Natation (mer)': return '🏊';
-    case 'Sport nautique': return '⛵';
-    case 'Sport de raquettes': return '🏸';
-    case 'Vélo (Elliptique/Appartement)':
-    case 'Vélo (Route)':
-    case 'Vélo (VTT)': return '🚴‍♀️';
-    case 'Étirements': return '🧘‍♀️';
-    case 'Gainage (Statique/Dynamique)': return '💪';
-    case 'Abdominaux': return '🤸';
-    case 'Autres sports': return '🏆';
-    default: return '✅';
-  }
-};
-
-const App = () => {
-    const [currentUser, setCurrentUser] = useState(null);
-    const [view, setView] = useState('login'); // 'login', 'createAccount', 'mainApp'
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [playerName, setPlayerName] = useState('');
-    const [authMessage, setAuthMessage] = useState('');
-
-    const [players, setPlayers] = useState([]);
-    const [selectedPlayer, setSelectedPlayer] = useState(null);
-    const [activities, setActivities] = useState([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newActivity, setNewActivity] = useState({ date: '', exercise: '', value: '' });
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState('');
-    const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-    const [activityToDelete, setActivityToDelete] = useState(null);
-    const [deleting, setDeleting] = useState(false);
-    const [isFirebaseReady, setIsFirebaseReady] = useState(isFirebaseConnected);
-    const [leaderboard, setLeaderboard] = useState([]);
-
-    useEffect(() => {
-        if (isFirebaseConnected && auth) {
-            const unsubscribe = onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    setCurrentUser(user);
-                    setView('mainApp');
-                    console.log("Utilisateur authentifié:", user.uid);
-                } else {
-                    setCurrentUser(null);
-                    setView('login');
-                    console.log("Utilisateur déconnecté.");
-                }
-            });
-            return () => unsubscribe();
-        }
-    }, []);
-
-    // Récupération des joueurs pour le classement et la sélection
-    useEffect(() => {
-        if (isFirebaseConnected && db && currentUser) {
-            const playersCollectionPath = `artifacts/${appId}/public/data/players`;
-            const playersRef = collection(db, playersCollectionPath);
-            const unsubscribe = onSnapshot(playersRef, (snapshot) => {
-                const playersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                playersList.sort((a, b) => b.totalPoints - a.totalPoints);
-                setLeaderboard(playersList);
-                setPlayers(playersList);
-
-                if (selectedPlayer && !playersList.some(p => p.id === selectedPlayer.id)) {
-                    setSelectedPlayer(null);
-                    setActivities([]);
-                }
-            });
-            return () => unsubscribe();
-        }
-    }, [db, appId, selectedPlayer, currentUser, isFirebaseReady]);
-
-    // Récupération des activités du joueur sélectionné
-    useEffect(() => {
-        if (isFirebaseConnected && db && selectedPlayer) {
-            const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
-            const playerActivitiesRef = collection(db, activitiesCollectionPath);
-            const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
-                const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setActivities(activitiesList.sort((a, b) => new Date(b.date) - new Date(a.date)));
-            });
-            return () => unsubscribe();
-        }
-    }, [db, appId, selectedPlayer, isFirebaseReady]);
-
-    const calculatePoints = (activity) => {
-        const exercise = EXERCISES.find(ex => ex.name === activity.exercise);
-        if (!exercise) return 0;
-        const value = parseFloat(activity.value);
-        if (isNaN(value)) return 0;
-        return (value / exercise.pointsPer) * exercise.points;
-    };
-
-    const getGroupPoints = (groupName) => {
-        return activities
-          .filter(act => {
-            const ex = EXERCISES.find(e => e.name === act.exercise);
-            return ex && ex.group === groupName;
-          })
-          .reduce((sum, act) => sum + calculatePoints(act), 0);
-    };
-
-    const getTotalPoints = () => {
-        return activities.reduce((sum, act) => sum + calculatePoints(act), 0);
-    };
-
-    const handleCreateAccount = async (e) => {
-        e.preventDefault();
-        setAuthMessage('');
-        if (!email || !password || !playerName) {
-            setAuthMessage('Veuillez remplir tous les champs.');
-            return;
-        }
-        if (!isFirebaseReady) {
-            setAuthMessage('Erreur de connexion à la base de données. Veuillez réessayer plus tard.');
-            return;
-        }
-        try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-            const playersCollectionPath = `artifacts/${appId}/public/data/players`;
-            const newPlayerRef = doc(db, playersCollectionPath, user.uid);
-            await setDoc(newPlayerRef, { name: playerName, email: user.email, createdAt: new Date(), totalPoints: 0 });
-            setAuthMessage('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
-            setView('login');
-        } catch (error) {
-            setAuthMessage(`Erreur de création de compte: ${error.message}`);
-        }
-    };
-
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setAuthMessage('');
-        if (!isFirebaseReady) {
-            setAuthMessage('Erreur de connexion à la base de données. Veuillez réessayer plus tard.');
-            return;
-        }
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-        } catch (error) {
-            setAuthMessage(`Erreur de connexion: ${error.message}`);
-        }
-    };
-
-    const handleLogout = () => {
-        if (auth) {
-            signOut(auth);
-        }
-    };
-
-    const handleSelectPlayer = (player) => {
-        setSelectedPlayer(player);
-    };
-
-    const handleOpenModal = () => {
-        setIsModalOpen(true);
-        setMessage('');
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setNewActivity({ date: '', exercise: '', value: '' });
-        setMessage('');
-    };
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setNewActivity(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleAddActivity = async (e) => {
-        e.preventDefault();
-        if (!newActivity.date || !newActivity.exercise || !newActivity.value) {
-            setMessage('Veuillez remplir tous les champs.');
-            return;
-        }
-        setLoading(true);
-        try {
-            if (isFirebaseConnected && db && selectedPlayer && currentUser) {
-                const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
-                const activityRef = doc(collection(db, activitiesCollectionPath));
-                const points = calculatePoints(newActivity);
-                await setDoc(activityRef, {
-                    ...newActivity,
-                    creatorUid: currentUser.uid,
-                    points: points,
-                    createdAt: new Date(),
-                });
-
-                // Mettre à jour le total des points du joueur
-                const playerRef = doc(db, `artifacts/${appId}/public/data/players`, selectedPlayer.id);
-                await updateDoc(playerRef, {
-                    totalPoints: selectedPlayer.totalPoints + points
-                });
-
-            } else {
-                setMessage('Erreur: Connexion à la base de données impossible.');
-            }
-            setNewActivity({ date: '', exercise: '', value: '' });
-            handleCloseModal();
-            setMessage('');
-        } catch (error) {
-            console.error("Erreur lors de l'ajout de l'activité:", error);
-            setMessage('Erreur lors de l\'ajout. Veuillez réessayer.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleOpenDeleteConfirmation = (activity) => {
-        if (activity.creatorUid === currentUser.uid) {
-            setActivityToDelete(activity);
-            setShowDeleteConfirmation(true);
-        } else {
-            setMessage('Vous ne pouvez supprimer que les activités que vous avez ajoutées.');
-            setTimeout(() => setMessage(''), 3000);
-        }
-    };
-
-    const handleCloseDeleteConfirmation = () => {
-        setActivityToDelete(null);
-        setShowDeleteConfirmation(false);
-        setMessage('');
-    };
-
-    const handleDeleteActivity = async () => {
-        if (activityToDelete) {
-            setDeleting(true);
-            try {
-                if (isFirebaseConnected && db && selectedPlayer && activityToDelete.creatorUid === currentUser.uid) {
-                    const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
-                    const activityRef = doc(db, activitiesCollectionPath, activityToDelete.id);
-                    await deleteDoc(activityRef);
-
-                    // Mettre à jour le total des points du joueur
-                    const playerRef = doc(db, `artifacts/${appId}/public/data/players`, selectedPlayer.id);
-                    await updateDoc(playerRef, {
-                        totalPoints: selectedPlayer.totalPoints - activityToDelete.points
-                    });
-                } else {
-                    setMessage('Erreur: Vous n\'avez pas la permission de supprimer cette activité.');
-                }
-                handleCloseDeleteConfirmation();
-                setMessage('');
-            } catch (error) {
-                console.error("Erreur lors de la suppression de l'activité:", error);
-                setMessage('Erreur lors de la suppression. Veuillez réessayer.');
-            } finally {
-                setDeleting(false);
-            }
-        }
-    };
-
-    const renderProgressBar = (groupName) => {
-        const { goal, color } = getGroupGoals()[groupName];
-        const points = getGroupPoints(groupName);
-        const progress = Math.min((points / goal) * 100, 100);
-        return (
-          <div className="flex items-center space-x-2 w-full">
-            <div className="w-full bg-gray-600 rounded-full h-2.5">
-              <div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${progress}%` }}></div>
-            </div>
-            <span className="text-sm font-medium text-white">{points.toFixed(1)} / {goal} Pts</span>
-          </div>
-        );
-    };
-
-    const totalPoints = getTotalPoints();
-    const totalGoal = 200;
-    const totalProgress = Math.min((totalPoints / totalGoal) * 100, 100);
-    
-    // Rendu conditionnel des vues
-    if (!currentUser) {
-        return (
-            <div className="min-h-screen bg-gray-950 text-white p-4 font-sans flex items-center justify-center">
-                <div className="container mx-auto max-w-sm">
-                    <header className="text-center mb-8">
-                        <img
-                            src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
-                            alt="Logo TNT"
-                            className="h-20 w-auto mx-auto mb-4"
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = "https://placehold.co/120x80/1e293b/a1a1aa?text=TNT+Logo";
-                            }}
-                        />
-                        <h1 className="text-3xl font-extrabold text-teal-400 tracking-wider">Suivi d'activités TNT U12</h1>
-                    </header>
-                    {view === 'login' && (
-                        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl border border-gray-700">
-                            <h2 className="text-2xl font-bold text-white mb-6 text-center">Connexion</h2>
-                            {authMessage && <p className="text-sm text-center text-red-400 mb-4">{authMessage}</p>}
-                            <form onSubmit={handleLogin} className="space-y-4">
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Adresse email"
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-full text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                />
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Mot de passe"
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-full text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                />
-                                <button
-                                    type="submit"
-                                    className="w-full px-6 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-bold rounded-full shadow-lg hover:from-teal-600 hover:to-cyan-600 transition-all duration-300"
-                                >
-                                    Se connecter
-                                </button>
-                            </form>
-                            <p className="text-center text-gray-400 mt-4">
-                                Pas encore de compte ?{' '}
-                                <button onClick={() => { setView('createAccount'); setAuthMessage(''); }} className="text-orange-400 hover:text-orange-500 font-semibold">
-                                    Créer un compte
-                                </button>
-                            </p>
-                        </div>
-                    )}
-                    {view === 'createAccount' && (
-                        <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl border border-gray-700">
-                            <h2 className="text-2xl font-bold text-white mb-6 text-center">Créer un compte</h2>
-                            {authMessage && <p className="text-sm text-center text-red-400 mb-4">{authMessage}</p>}
-                            <form onSubmit={handleCreateAccount} className="space-y-4">
-                                <input
-                                    type="text"
-                                    value={playerName}
-                                    onChange={(e) => setPlayerName(e.target.value)}
-                                    placeholder="Nom du joueur (ex: John Doe)"
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-full text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                />
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Adresse email"
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-full text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                />
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Mot de passe (6 caractères minimum)"
-                                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-full text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                />
-                                <button
-                                    type="submit"
-                                    className="w-full px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold rounded-full shadow-lg hover:from-orange-600 hover:to-amber-600 transition-all duration-300"
-                                >
-                                    Créer un compte
-                                </button>
-                            </form>
-                            <p className="text-center text-gray-400 mt-4">
-                                Déjà un compte ?{' '}
-                                <button onClick={() => { setView('login'); setAuthMessage(''); }} className="text-teal-400 hover:text-teal-500 font-semibold">
-                                    Se connecter
-                                </button>
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    }
+// Composant pour le menu burger
+const BurgerMenu = ({ currentUser, handleLogout }) => {
+    const [isOpen, setIsOpen] = useState(false);
 
     return (
-        <div className="min-h-screen bg-gray-950 text-white p-4 font-sans">
-            <div className="container mx-auto max-w-4xl">
-                <header className="flex items-center justify-between p-4 mb-8 bg-gradient-to-r from-gray-900 to-gray-800 rounded-3xl shadow-2xl border border-gray-700">
-                    <div className="flex items-center">
-                        <img
-                            src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
-                            alt="Logo TNT U12"
-                            className="h-20 w-auto mr-4"
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = "https://placehold.co/120x80/1e293b/a1a1aa?text=TNT+Logo";
-                            }}
-                        />
-                        <h1 className="text-4xl font-extrabold text-white tracking-wider">Suivi d'activités TNT U12</h1>
+        <div className="relative">
+            <button onClick={() => setIsOpen(!isOpen)} className="text-white focus:outline-none p-2 rounded-full hover:bg-gray-800 transition-colors">
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                </svg>
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                    <div className="py-2" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                        <div className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700 font-semibold">
+                            {currentUser.displayName || `Utilisateur #${currentUser.uid.substring(0, 4)}...`}
+                        </div>
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+                            role="menuitem"
+                        >
+                            <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            Déconnexion
+                        </button>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors duration-300"
-                    >
-                        Déconnexion
-                    </button>
-                </header>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Composant principal de l'application
+const App = () => {
+    const [players, setPlayers] = useState([]);
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [newPlayerName, setNewPlayerName] = useState('');
+    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+
+    // Initialisation de l'authentification anonyme
+    useEffect(() => {
+        if (!isFirebaseConnected || !auth) {
+            console.error("Firebase n'est pas connecté. L'application ne fonctionnera pas correctement.");
+            return;
+        }
+
+        const unsub = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                setCurrentUser(user);
+                // Si l'utilisateur est anonyme, on peut lui assigner un nom par défaut
+                if (user.isAnonymous) {
+                     // Logique pour s'assurer que l'utilisateur a un nom d'affichage si nécessaire
+                }
+            } else {
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Erreur lors de l'authentification anonyme:", error);
+                }
+            }
+            setIsAuthReady(true);
+        });
+
+        return () => unsub();
+    }, []);
+
+    // Récupération des joueurs
+    useEffect(() => {
+        if (isAuthReady && isFirebaseConnected && db) {
+            const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
+            const unsub = onSnapshot(playersRef, (snapshot) => {
+                const playersData = snapshot.docs.map(doc => ({
+                    ...doc.data(),
+                    id: doc.id
+                }));
+                // Tri par points décroissants
+                playersData.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+                setPlayers(playersData);
+
+                // Si le joueur sélectionné n'existe plus, on désélectionne
+                if (selectedPlayer && !playersData.some(p => p.id === selectedPlayer.id)) {
+                    setSelectedPlayer(null);
+                }
+            }, (error) => {
+                console.error("Erreur lors de la récupération des joueurs:", error);
+            });
+
+            return () => unsub();
+        }
+    }, [isAuthReady, isFirebaseConnected, db, selectedPlayer]);
+
+    // Fonctions CRUD pour les joueurs et activités
+    const addPlayer = async () => {
+        if (newPlayerName.trim() === '') return;
+        if (!isFirebaseConnected || !currentUser) return;
+
+        const playersRef = collection(db, `artifacts/${appID}/public/data/players`);
+        try {
+            await setDoc(doc(playersRef), {
+                name: newPlayerName,
+                activities: [],
+                totalPoints: 0
+            });
+            setNewPlayerName('');
+        } catch (e) {
+            console.error("Erreur lors de l'ajout du joueur:", e);
+        }
+    };
+
+    const addActivity = async (playerId, activity) => {
+        if (!isFirebaseConnected || !currentUser) return;
+        
+        const playerDocRef = doc(db, `artifacts/${appID}/public/data/players/${playerId}`);
+        const activityRef = doc(collection(playerDocRef, 'activities'));
+
+        try {
+            const docSnap = await getDoc(playerDocRef);
+            if (docSnap.exists()) {
+                const points = (activity.quantity / EXERCISES.find(e => e.name === activity.exercise).pointsPer) * EXERCISES.find(e => e.name === activity.exercise).points;
+                const newTotalPoints = (docSnap.data().totalPoints || 0) + points;
+                await updateDoc(playerDocRef, { totalPoints: newTotalPoints });
+                await setDoc(activityRef, {
+                    ...activity,
+                    points: points,
+                    creatorUid: currentUser.uid,
+                    createdAt: new Date().toISOString()
+                });
+            }
+        } catch (e) {
+            console.error("Erreur lors de l'ajout de l'activité:", e);
+        }
+    };
+
+    const deleteActivity = async (playerId, activityId) => {
+        if (!isFirebaseConnected || !currentUser) return;
+
+        const playerDocRef = doc(db, `artifacts/${appID}/public/data/players/${playerId}`);
+        const activityDocRef = doc(db, `artifacts/${appID}/public/data/players/${playerId}/activities/${activityId}`);
+
+        try {
+            const activitySnap = await getDoc(activityDocRef);
+            if (activitySnap.exists() && activitySnap.data().creatorUid === currentUser.uid) {
+                const playerSnap = await getDoc(playerDocRef);
+                const oldTotalPoints = playerSnap.data().totalPoints || 0;
+                const pointsToRemove = activitySnap.data().points;
+                const newTotalPoints = Math.max(0, oldTotalPoints - pointsToRemove);
                 
-                <div className="text-center mb-8">
-                    <p className="text-gray-400 mt-2 text-sm">ID Utilisateur: {currentUser ? currentUser.uid : 'En attente...'}</p>
+                await updateDoc(playerDocRef, { totalPoints: newTotalPoints });
+                await deleteDoc(activityDocRef);
+            } else {
+                console.error("Permission refusée ou activité non trouvée.");
+            }
+        } catch (e) {
+            console.error("Erreur lors de la suppression de l'activité:", e);
+        }
+    };
+
+    const handleLogout = async () => {
+        if (isFirebaseConnected && auth) {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Erreur lors de la déconnexion:", error);
+            }
+        }
+    };
+
+    const PlayerDetails = ({ player, onBack }) => {
+        const [activities, setActivities] = useState([]);
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [newActivity, setNewActivity] = useState({ date: '', exercise: '', quantity: '' });
+        const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+        const [activityToDelete, setActivityToDelete] = useState(null);
+        const [deleting, setDeleting] = useState(false);
+        const [message, setMessage] = useState('');
+
+        useEffect(() => {
+            if (isFirebaseConnected && player && db) {
+                const activitiesRef = collection(db, `artifacts/${appID}/public/data/players/${player.id}/activities`);
+                const unsub = onSnapshot(activitiesRef, (snapshot) => {
+                    const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    activitiesList.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    setActivities(activitiesList);
+                });
+                return () => unsub();
+            }
+        }, [player]);
+
+        const handleAddActivity = (e) => {
+            e.preventDefault();
+            if (newActivity.date && newActivity.exercise && newActivity.quantity) {
+                addActivity(player.id, newActivity);
+                setNewActivity({ date: '', exercise: '', quantity: '' });
+                setIsModalOpen(false);
+            }
+        };
+
+        const handleOpenDeleteConfirmation = (activity) => {
+            if (activity.creatorUid === currentUser?.uid) {
+                setActivityToDelete(activity);
+                setShowDeleteConfirmation(true);
+            } else {
+                setMessage('Vous ne pouvez supprimer que les activités que vous avez ajoutées.');
+                setTimeout(() => setMessage(''), 3000);
+            }
+        };
+
+        const handleDeleteActivity = () => {
+            setDeleting(true);
+            deleteActivity(player.id, activityToDelete.id);
+            setDeleting(false);
+            setShowDeleteConfirmation(false);
+            setActivityToDelete(null);
+        };
+        
+        const renderGroupProgress = (groupName) => {
+          const groupGoals = {
+            'Groupe 1': { goal: 50, color: 'bg-orange-400' },
+            'Groupe 2': { goal: 50, color: 'bg-blue-400' },
+            'Groupe 3': { goal: 50, color: 'bg-teal-400' },
+          };
+          const { goal, color } = groupGoals[groupName];
+          const points = activities
+              .filter(act => {
+                  const ex = EXERCISES.find(e => e.name === act.exercise);
+                  return ex && ex.group === groupName;
+              })
+              .reduce((sum, act) => sum + act.points, 0);
+          const progress = Math.min((points / goal) * 100, 100);
+
+          return (
+            <div className="flex items-center space-x-2 w-full">
+              <div className="w-full bg-gray-700 rounded-full h-2.5">
+                <div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${progress}%` }}></div>
+              </div>
+              <span className="text-sm font-medium text-white">{points.toFixed(1)} / {goal} Pts</span>
+            </div>
+          );
+        };
+        
+        return (
+            <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
+                <button
+                    onClick={onBack}
+                    className="mb-6 text-blue-400 font-bold hover:text-blue-300 transition-colors duration-200"
+                >
+                    &larr; Retour au classement
+                </button>
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold text-orange-400">{player.name}</h2>
+                    <span className="text-3xl font-extrabold text-blue-400">{player.totalPoints.toFixed(1)} Pts</span>
                 </div>
 
-                {/* Section Classement des joueurs */}
-                <section className="mb-8 p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                    <h2 className="text-2xl font-bold text-teal-400 mb-4">Classement des joueurs</h2>
-                    <div className="space-y-3">
-                        {leaderboard.map((player, index) => (
-                            <div key={player.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-2xl">
-                                <div className="flex items-center space-x-4">
-                                    <span className="text-2xl font-extrabold text-orange-400 w-8">
-                                        {index === 0 && '🥇'}
-                                        {index === 1 && '🥈'}
-                                        {index === 2 && '🥉'}
-                                        {index > 2 && `${index + 1}.`}
-                                    </span>
-                                    <span className="text-lg font-bold text-white">{player.name}</span>
+                <div className="mb-6 space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-200">Points par groupe:</h3>
+                  {['Groupe 1', 'Groupe 2', 'Groupe 3'].map(groupName => (
+                      <div key={groupName}>
+                          <p className="text-gray-300 font-medium mb-1">{groupName}</p>
+                          {renderGroupProgress(groupName)}
+                      </div>
+                  ))}
+                </div>
+
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-full p-4 mb-6 bg-blue-500 text-white font-bold rounded-2xl shadow-md hover:bg-blue-600 transition-colors duration-200"
+                >
+                    Ajouter une activité
+                </button>
+
+                <h3 className="text-xl font-bold text-blue-400 mb-4">Historique des activités</h3>
+                <ul className="space-y-4">
+                    {activities.length > 0 ? (
+                        activities.map(activity => (
+                            <li key={activity.id} className="bg-gray-800 p-4 rounded-2xl shadow-md flex justify-between items-center border border-gray-700">
+                                <div>
+                                    <p className="text-lg font-semibold text-white">{activity.exercise}</p>
+                                    <p className="text-sm text-gray-400">
+                                        {activity.quantity} {EXERCISES.find(e => e.name === activity.exercise)?.unit} - le {activity.date}
+                                    </p>
                                 </div>
-                                <span className="text-lg font-extrabold text-teal-400">{player.totalPoints.toFixed(1)} Pts</span>
-                            </div>
-                        ))}
-                    </div>
-                </section>
+                                <div className="flex items-center space-x-4">
+                                    <span className="text-xl font-bold text-orange-400">{activity.points.toFixed(1)} pts</span>
+                                    {activity.creatorUid === currentUser?.uid && (
+                                        <button
+                                            onClick={() => handleOpenDeleteConfirmation(activity)}
+                                            className="text-red-500 hover:text-red-600 transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            </li>
+                        ))
+                    ) : (
+                        <p className="text-gray-400 italic text-center">Aucune activité enregistrée pour ce joueur.</p>
+                    )}
+                </ul>
 
-                {/* Section de gestion des joueurs */}
-                <section className="mb-8 p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                    <h2 className="text-xl font-bold text-teal-400 mb-4">Sélectionner un joueur</h2>
-                    <div className="flex flex-wrap gap-4">
-                        {players.map(player => (
-                            <button
-                                key={player.id}
-                                onClick={() => handleSelectPlayer(player)}
-                                className={`px-6 py-3 rounded-full shadow-md transition-all duration-300 ${
-                                    selectedPlayer && selectedPlayer.id === player.id
-                                        ? 'bg-orange-500 text-white font-bold transform scale-105'
-                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                }`}
-                            >
-                                {player.name}
-                            </button>
-                        ))}
-                    </div>
-                </section>
-
-                {/* Section d'activités */}
-                {selectedPlayer && (
-                    <section className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-2xl font-bold text-teal-400">{selectedPlayer.name}</h2>
-                            <button
-                                onClick={handleOpenModal}
-                                className="px-6 py-2 bg-gradient-to-r from-blue-500 to-sky-500 text-white font-bold rounded-full shadow-lg hover:from-blue-600 hover:to-sky-600 transition-all duration-300 transform hover:scale-105"
-                            >
-                                Ajouter une activité
-                            </button>
-                        </div>
-
-                        {/* Affichage des points par groupe */}
-                        <div className="mb-6 space-y-4">
-                            <h3 className="text-xl font-semibold text-gray-200">Points par groupe:</h3>
-                            <div className="space-y-3">
-                                {Object.keys(getGroupGoals()).map(groupName => (
-                                    <div key={groupName}>
-                                        <p className="text-gray-300 font-medium mb-1">{groupName}</p>
-                                        {renderProgressBar(groupName)}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-inner border border-gray-700">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xl font-bold text-white">Total des points</span>
-                                <span className="text-3xl font-extrabold text-orange-400">{selectedPlayer.totalPoints.toFixed(1)} Pts</span>
-                            </div>
-                            <div className="w-full bg-gray-700 rounded-full h-4">
-                                <div className={`bg-gradient-to-r from-teal-400 to-cyan-500 h-4 rounded-full transition-all duration-500`} style={{ width: `${Math.min((selectedPlayer.totalPoints / totalGoal) * 100, 100)}%` }}></div>
-                            </div>
-                            <p className="text-sm text-gray-400 mt-2">Objectif: {totalGoal} points par semaine minimum</p>
-                            {selectedPlayer.totalPoints >= totalGoal ? (
-                                <span className="text-green-400 text-sm font-semibold mt-1">Objectif atteint !</span>
-                            ) : (
-                                <span className="text-red-400 text-sm font-semibold mt-1">Objectif non atteint.</span>
-                            )}
-                        </div>
-
-                        {activities.length > 0 ? (
-                            <div className="space-y-4">
-                                {activities.map(activity => (
-                                    <div key={activity.id} className="bg-gray-800 p-4 rounded-xl shadow-md flex items-center justify-between border border-gray-700">
-                                        <div className="flex items-center space-x-4">
-                                            <span className="text-3xl">{getExerciseIcon(activity.exercise)}</span>
-                                            <div>
-                                                <p className="text-gray-300 text-sm">Date: <span className="font-semibold text-white">{activity.date}</span></p>
-                                                <p className="text-lg font-bold text-teal-400">{activity.exercise}</p>
-                                                <p className="text-gray-300 text-sm">{activity.value} {EXERCISES.find(e => e.name === activity.exercise)?.unit}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-2xl font-extrabold text-white">{activity.points.toFixed(1)} Pts</p>
-                                            <button
-                                                onClick={() => handleOpenDeleteConfirmation(activity)}
-                                                className={`text-sm font-semibold mt-2 transition-colors ${activity.creatorUid === currentUser.uid ? 'text-red-400 hover:text-red-500' : 'text-gray-500 cursor-not-allowed'}`}
-                                                disabled={activity.creatorUid !== currentUser.uid}
-                                            >
-                                                Supprimer
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-center text-gray-400 italic">Aucune activité enregistrée pour ce joueur.</p>
-                        )}
-                        {message && <p className="text-sm text-center text-red-400 mt-4">{message}</p>}
-                    </section>
-                )}
-                {/* Modal pour ajouter une activité */}
                 {isModalOpen && (
                     <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
-                            <h3 className="text-2xl font-bold text-teal-400 mb-6">Ajouter une activité pour {selectedPlayer.name}</h3>
-                            {message && <p className="text-sm text-center text-red-400 mb-4">{message}</p>}
+                            <h3 className="text-2xl font-bold text-blue-400 mb-6">Ajouter une activité</h3>
                             <form onSubmit={handleAddActivity} className="space-y-4">
                                 <div>
-                                    <label htmlFor="date" className="block text-sm font-medium text-gray-300 mb-1">Date</label>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
                                     <input
                                         type="date"
-                                        id="date"
-                                        name="date"
                                         value={newActivity.date}
-                                        onChange={handleInputChange}
-                                        className="block w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        onChange={(e) => setNewActivity({ ...newActivity, date: e.target.value })}
+                                        className="w-full p-2 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        required
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="exercise" className="block text-sm font-medium text-gray-300 mb-1">Activité</label>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1">Activité</label>
                                     <select
-                                        id="exercise"
-                                        name="exercise"
                                         value={newActivity.exercise}
-                                        onChange={handleInputChange}
-                                        className="block w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        onChange={(e) => setNewActivity({ ...newActivity, exercise: e.target.value })}
+                                        className="w-full p-2 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        required
                                     >
-                                        <option value="" disabled>Sélectionner une activité</option>
+                                        <option value="" disabled>Sélectionnez une activité</option>
                                         {EXERCISES.map(ex => (
                                             <option key={ex.name} value={ex.name}>
                                                 {ex.name}
@@ -629,51 +401,45 @@ const App = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label htmlFor="value" className="block text-sm font-medium text-gray-300 mb-1">Valeur ({newActivity.exercise ? EXERCISES.find(e => e.name === newActivity.exercise)?.unit : 'Unité'})</label>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1">Quantité</label>
                                     <input
                                         type="number"
-                                        id="value"
-                                        name="value"
-                                        value={newActivity.value}
-                                        onChange={handleInputChange}
-                                        className="block w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        placeholder="Ex: 5, 30, 250"
+                                        value={newActivity.quantity}
+                                        onChange={(e) => setNewActivity({ ...newActivity, quantity: e.target.value })}
+                                        className="w-full p-2 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        required
                                     />
                                 </div>
-                                <div className="flex justify-end space-x-4 mt-6">
+                                <div className="flex justify-end space-x-4 pt-4">
                                     <button
                                         type="button"
-                                        onClick={handleCloseModal}
-                                        disabled={loading}
-                                        className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                                        onClick={() => setIsModalOpen(false)}
+                                        className="px-6 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors"
                                     >
                                         Annuler
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={loading}
-                                        className="px-6 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-bold rounded-full shadow-lg hover:from-teal-600 hover:to-cyan-600 transition-all duration-300 disabled:opacity-50"
+                                        className="px-6 py-2 bg-blue-500 text-white font-bold rounded-full hover:bg-blue-600 transition-colors"
                                     >
-                                        {loading ? 'Ajout...' : 'Ajouter'}
+                                        Enregistrer
                                     </button>
                                 </div>
                             </form>
                         </div>
                     </div>
                 )}
-
-                {/* Modal de confirmation de suppression */}
                 {showDeleteConfirmation && (
                     <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
-                            <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression</h3>
-                            <p className="text-gray-300 mb-6">
-                                Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> pour <span className="font-bold">{selectedPlayer.name}</span> ? Cette action est irréversible.
+                            <h3 className="text-2xl font-bold text-red-400 mb-4 text-center">Confirmer la suppression</h3>
+                            <p className="text-gray-300 mb-6 text-center">
+                                Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> ? Cette action est irréversible.
                             </p>
-                            {message && <p className="text-sm text-center text-red-400 mb-4">Erreur: {message}</p>}
-                            <div className="flex justify-end space-x-4">
+                            {message && <p className="text-sm text-center text-red-400 mb-4">{message}</p>}
+                            <div className="flex justify-center space-x-4">
                                 <button
-                                    onClick={handleCloseDeleteConfirmation}
+                                    onClick={() => setShowDeleteConfirmation(false)}
                                     disabled={deleting}
                                     className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
                                 >
@@ -689,6 +455,75 @@ const App = () => {
                             </div>
                         </div>
                     </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-950 text-gray-200 font-sans p-4 md:p-8">
+            <header className="flex items-center justify-between flex-wrap gap-4 mb-8">
+                <div className="flex items-center space-x-4">
+                    <img
+                        src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
+                        alt="Logo"
+                        className="h-16 w-16 md:h-20 md:w-20"
+                        onError={(e) => e.target.src = "https://placehold.co/80x80/000/FFF?text=Logo"}
+                    />
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white">
+                        <span className="text-orange-400">Suivi </span>
+                        <span className="text-blue-400">d'entraînements</span>
+                    </h1>
+                </div>
+                {currentUser && <BurgerMenu currentUser={currentUser} handleLogout={handleLogout} />}
+            </header>
+
+            <div className="max-w-7xl mx-auto">
+                {selectedPlayer ? (
+                    <PlayerDetails player={selectedPlayer} onBack={() => setSelectedPlayer(null)} />
+                ) : (
+                    <>
+                        {/* Section d'ajout de joueur */}
+                        <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
+                            <h2 className="text-2xl font-bold text-blue-400 mb-4">Ajouter un joueur</h2>
+                            <div className="flex space-x-4">
+                                <input
+                                    type="text"
+                                    value={newPlayerName}
+                                    onChange={(e) => setNewPlayerName(e.target.value)}
+                                    placeholder="Nom du joueur"
+                                    className="flex-grow p-3 bg-gray-800 text-white rounded-full placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                                <button
+                                    onClick={addPlayer}
+                                    className="p-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200"
+                                >
+                                    Ajouter
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Classement des joueurs */}
+                        <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
+                            <h2 className="text-2xl font-bold text-blue-400 mb-4">Classement des joueurs</h2>
+                            <ul className="space-y-4">
+                                {players.map((player, index) => (
+                                    <li key={player.id}>
+                                        <button
+                                            onClick={() => setSelectedPlayer(player)}
+                                            className="w-full text-left p-4 bg-gray-800 rounded-2xl shadow-md hover:bg-gray-700 transition-colors duration-200 flex items-center justify-between"
+                                        >
+                                            <div className="flex items-center space-x-4">
+                                                <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
+                                                <span className="text-lg font-semibold text-white">{player.name}</span>
+                                            </div>
+                                            <span className="text-xl font-bold text-blue-400">{player.totalPoints.toFixed(1)} Pts</span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </>
                 )}
             </div>
         </div>
