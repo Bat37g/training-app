@@ -60,6 +60,9 @@ const EXERCISES = [
   { id: 18, name: 'Vélo (VTT)', points: 7, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
 ];
 
+// L'ID de l'administrateur
+const ADMIN_EMAIL = "batou.code@gmail.com";
+
 const getWeekNumber = (d) => {
   d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -107,17 +110,72 @@ const getEmoji = (points) => {
   return '';
 };
 
-// Nouvelle page pour la gestion des utilisateurs (simplifiée pour l'exemple)
+// Nouvelle page pour la gestion des utilisateurs
 const UserManagementPage = ({ user, setCurrentPage }) => {
-  // Ici, vous pourriez implémenter la logique pour lister, ajouter, modifier
-  // ou supprimer des utilisateurs. Pour le moment, c'est une coquille.
-  const [users, setUsers] = useState([]);
+  const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [playerToDelete, setPlayerToDelete] = useState(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletingPlayer, setDeletingPlayer] = useState(false);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    // Logique de chargement des utilisateurs depuis Firestore
-    setLoading(false);
-  }, []);
+    if (!db) {
+        console.error("Firestore n'est pas initialisé.");
+        return;
+    }
+    const playersCollectionRef = collection(db, `artifacts/${appId}/public/data/team_challenge`);
+    const unsubscribe = onSnapshot(playersCollectionRef, (snapshot) => {
+      const playersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setPlayers(playersData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Erreur lors de la récupération des données:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [db, appId]);
+
+  const handleOpenDeletePlayerConfirmation = (player) => {
+      setPlayerToDelete(player);
+      setShowDeleteConfirmation(true);
+  };
+
+  const handleCloseDeletePlayerConfirmation = () => {
+      setPlayerToDelete(null);
+      setShowDeleteConfirmation(false);
+      setMessage('');
+  };
+
+  const handleDeletePlayer = async () => {
+      if (!playerToDelete) return;
+      setDeletingPlayer(true);
+      setMessage('');
+
+      try {
+          const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerToDelete.id);
+          await deleteDoc(playerDocRef);
+          setMessage(`Le joueur ${playerToDelete.name} a été supprimé.`);
+          handleCloseDeletePlayerConfirmation();
+      } catch (e) {
+          console.error("Erreur lors de la suppression du joueur:", e);
+          setMessage("Erreur lors de la suppression du joueur. Veuillez réessayer.");
+      } finally {
+          setDeletingPlayer(false);
+      }
+  };
+
+  if (loading) {
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
+            <div className="text-xl">Chargement des joueurs...</div>
+        </div>
+    );
+  }
 
   return (
     <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
@@ -133,13 +191,65 @@ const UserManagementPage = ({ user, setCurrentPage }) => {
                 Retour
             </button>
         </header>
-        <p className="text-gray-400">Cette page est en cours de développement. Elle permettra de gérer les joueurs.</p>
-        <div className="mt-8">
-            {/* Contenu pour la gestion des utilisateurs ici */}
-            <p className="text-gray-500 italic">
-                En tant qu'administrateur, vous pourriez voir la liste des joueurs, les modifier, ou en supprimer.
-            </p>
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
+            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Liste des joueurs</h2>
+            <table className="w-full text-left min-w-[700px]">
+                <thead>
+                    <tr className="bg-gray-800">
+                        <th className="p-3 rounded-tl-xl">Nom</th>
+                        <th className="p-3">Email</th>
+                        <th className="p-3">ID utilisateur</th>
+                        <th className="p-3 rounded-tr-xl">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {players.map(player => (
+                        <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200">
+                            <td className="p-3 font-bold">{player.name}</td>
+                            <td className="p-3">{player.email}</td>
+                            <td className="p-3 font-mono text-sm break-all">{player.id}</td>
+                            <td className="p-3">
+                                <button
+                                    onClick={() => handleOpenDeletePlayerConfirmation(player)}
+                                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-full shadow-lg hover:bg-red-700 transition-colors"
+                                >
+                                    Supprimer
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {message && <p className="text-center mt-4 text-sm text-green-400">{message}</p>}
         </div>
+
+        {/* Modal de confirmation de suppression */}
+        {showDeleteConfirmation && playerToDelete && (
+          <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
+              <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression du joueur</h3>
+              <p className="text-gray-300 mb-6">
+                Êtes-vous sûr de vouloir supprimer le joueur <span className="font-bold text-orange-400">{playerToDelete.name}</span> et toutes ses activités ? Cette action est irréversible.
+              </p>
+              <div className="flex justify-end space-x-4">
+                <button
+                  onClick={handleCloseDeletePlayerConfirmation}
+                  disabled={deletingPlayer}
+                  className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleDeletePlayer}
+                  disabled={deletingPlayer}
+                  className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {deletingPlayer ? 'Suppression...' : 'Supprimer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -212,6 +322,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         points: pointsEarned,
         date: today,
         group: groupName,
+        emoji: selectedExercise.emoji,
         timestamp: Date.now()
       };
 
@@ -401,12 +512,15 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                             <span className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700">
                                 {playerName}
                             </span>
-                            <button
-                                onClick={() => { setCurrentPage('UserManagement'); toggleMenu(); }}
-                                className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
-                            >
-                                Gestion des utilisateurs
-                            </button>
+                            {/* Option de menu conditionnelle pour l'administrateur */}
+                            {user.email === ADMIN_EMAIL && (
+                                <button
+                                    onClick={() => { setCurrentPage('UserManagement'); toggleMenu(); }}
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                                >
+                                    Gestion des utilisateurs
+                                </button>
+                            )}
                             <button
                                 onClick={() => { handleLogout(); toggleMenu(); }}
                                 className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
@@ -421,25 +535,6 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         <p className="text-center mb-8 text-gray-400">
           *Note: Votre ID d'utilisateur est <span className="font-mono text-sm break-all">{user.uid}</span>
         </p>
-
-        {/* Légende des groupes d'activités */}
-        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-gray-700">
-            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-white">Groupes d'activités</h2>
-            <div className="flex flex-wrap gap-4 text-sm sm:text-base">
-                <div className="flex items-center space-x-2">
-                    <span className="w-4 h-4 rounded-full bg-red-500"></span>
-                    <span className="text-red-300">Groupe Rouge (Renforcement & sports collectifs)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <span className="w-4 h-4 rounded-full bg-blue-500"></span>
-                    <span className="text-blue-300">Groupe Bleu (Activités nautiques & sports d'eau)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <span className="w-4 h-4 rounded-full bg-green-500"></span>
-                    <span className="text-green-300">Groupe Vert (Endurance & cardio)</span>
-                </div>
-            </div>
-        </div>
 
         <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
           <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de l'équipe (semaine en cours)</h2>
@@ -514,6 +609,25 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
               </tbody>
             </table>
           </div>
+        </div>
+        
+        {/* Légende des groupes d'activités, déplacée après le classement */}
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-gray-700">
+            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-white">Groupes d'activités</h2>
+            <div className="flex flex-wrap gap-4 text-sm sm:text-base">
+                <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 rounded-full bg-red-500"></span>
+                    <span className="text-red-300">Groupe Rouge (Renforcement & sports collectifs)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-500"></span>
+                    <span className="text-blue-300">Groupe Bleu (Activités nautiques & sports d'eau)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 rounded-full bg-green-500"></span>
+                    <span className="text-green-300">Groupe Vert (Endurance & cardio)</span>
+                </div>
+            </div>
         </div>
 
         <div className="text-center">
@@ -618,14 +732,17 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                           </span>
                           <span className="flex items-center space-x-2">
                             <span className="font-bold text-blue-300">{activity.points.toFixed(1)} points</span>
-                            <button
-                              onClick={() => handleOpenDeleteConfirmation(activity)}
-                              className="text-white bg-red-500 hover:bg-red-600 p-1 rounded-full transition-colors duration-200"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 112 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                              </svg>
-                            </button>
+                            {/* Seul l'administrateur peut supprimer une activité */}
+                            {user.email === ADMIN_EMAIL && (
+                                <button
+                                    onClick={() => handleOpenDeleteConfirmation(activity)}
+                                    className="text-white bg-red-500 hover:bg-red-600 p-1 rounded-full transition-colors duration-200"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 112 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            )}
                           </span>
                         </li>
                       ))}
