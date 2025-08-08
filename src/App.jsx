@@ -238,9 +238,8 @@ const App = () => {
         if (isFirebaseConnected && auth) {
             try {
                 await signOut(auth);
-                // Forcer un rechargement de la page pour réinitialiser l'état de l'application après déconnexion.
-                // Cela garantit que l'écran de connexion est affiché.
-                window.location.reload(); 
+                // Utilisation de la redirection vers la racine de l'application
+                window.location.href = window.location.origin;
             } catch (error) {
                 console.error("Erreur lors de la déconnexion:", error);
             }
@@ -553,7 +552,7 @@ const App = () => {
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.3.0</p>
+                <p>Version 3.4.0</p>
             </footer>
         </div>
     );
