@@ -553,7 +553,7 @@ const App = () => {
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.2.0</p>
+                <p>Version 3.3.0</p>
             </footer>
         </div>
     );
