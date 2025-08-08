@@ -13,11 +13,15 @@ import {
     setDoc, 
     onSnapshot, 
     collection, 
-    deleteDoc,
+    updateDoc, 
+    getDoc, 
+    deleteDoc, 
+    query, 
+    orderBy,
     getDocs
 } from 'firebase/firestore';
 
-// Tes paramètres Firebase
+// Configuration Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
   authDomain: "tnt-training.firebaseapp.com",
@@ -27,9 +31,9 @@ const firebaseConfig = {
   appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
   measurementId: "G-B74Q9T0KMB"
 };
+const appId = firebaseConfig.appId.split(':')[1];
 
-const appId = "1:791420900421:web:deb9dffb55ef1b3febff2c"; // Utiliser l'appId de ta configuration
-
+// Initialisation de Firebase
 let app;
 let db;
 let auth;
@@ -45,7 +49,7 @@ try {
   console.error("Erreur lors de l'initialisation de Firebase:", e);
 }
 
-
+// Liste des exercices
 const EXERCISES = [
   { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 3' },
   { name: 'Gainage (Statique/Dynamique)', points: 2, unit: 'secondes', pointsPer: 30, group: 'Groupe 3' },
@@ -93,7 +97,6 @@ const getExerciseIcon = (exerciseName) => {
   }
 };
 
-
 const App = () => {
     const [currentUser, setCurrentUser] = useState(null);
     const [view, setView] = useState('login'); // 'login', 'createAccount', 'mainApp'
@@ -137,23 +140,11 @@ const App = () => {
         if (isFirebaseConnected && db && currentUser) {
             const playersCollectionPath = `artifacts/${appId}/public/data/players`;
             const playersRef = collection(db, playersCollectionPath);
-            const unsubscribe = onSnapshot(playersRef, async (snapshot) => {
+            const unsubscribe = onSnapshot(playersRef, (snapshot) => {
                 const playersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                playersList.sort((a, b) => b.totalPoints - a.totalPoints);
+                setLeaderboard(playersList);
                 setPlayers(playersList);
-
-                // Calcul du classement
-                const leaderboardData = await Promise.all(playersList.map(async (player) => {
-                    const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${player.id}/activities`;
-                    const activitiesRef = collection(db, activitiesCollectionPath);
-                    const activitiesSnapshot = await getDocs(activitiesRef);
-                    const playerActivities = activitiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                    const totalPoints = playerActivities.reduce((sum, act) => sum + calculatePoints(act), 0);
-                    return { ...player, totalPoints };
-                }));
-
-                leaderboardData.sort((a, b) => b.totalPoints - a.totalPoints);
-                setLeaderboard(leaderboardData);
 
                 if (selectedPlayer && !playersList.some(p => p.id === selectedPlayer.id)) {
                     setSelectedPlayer(null);
@@ -171,7 +162,7 @@ const App = () => {
             const playerActivitiesRef = collection(db, activitiesCollectionPath);
             const unsubscribe = onSnapshot(playerActivitiesRef, (snapshot) => {
                 const activitiesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setActivities(activitiesList);
+                setActivities(activitiesList.sort((a, b) => new Date(b.date) - new Date(a.date)));
             });
             return () => unsubscribe();
         }
@@ -214,7 +205,7 @@ const App = () => {
             const user = userCredential.user;
             const playersCollectionPath = `artifacts/${appId}/public/data/players`;
             const newPlayerRef = doc(db, playersCollectionPath, user.uid);
-            await setDoc(newPlayerRef, { name: playerName, email: user.email, createdAt: new Date() });
+            await setDoc(newPlayerRef, { name: playerName, email: user.email, createdAt: new Date(), totalPoints: 0 });
             setAuthMessage('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
             setView('login');
         } catch (error) {
@@ -273,10 +264,20 @@ const App = () => {
             if (isFirebaseConnected && db && selectedPlayer && currentUser) {
                 const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
                 const activityRef = doc(collection(db, activitiesCollectionPath));
+                const points = calculatePoints(newActivity);
                 await setDoc(activityRef, {
                     ...newActivity,
-                    creatorUid: currentUser.uid, // Associe l'activité à l'utilisateur qui l'ajoute
+                    creatorUid: currentUser.uid,
+                    points: points,
+                    createdAt: new Date(),
                 });
+
+                // Mettre à jour le total des points du joueur
+                const playerRef = doc(db, `artifacts/${appId}/public/data/players`, selectedPlayer.id);
+                await updateDoc(playerRef, {
+                    totalPoints: selectedPlayer.totalPoints + points
+                });
+
             } else {
                 setMessage('Erreur: Connexion à la base de données impossible.');
             }
@@ -315,6 +316,12 @@ const App = () => {
                     const activitiesCollectionPath = `artifacts/${appId}/public/data/players/${selectedPlayer.id}/activities`;
                     const activityRef = doc(db, activitiesCollectionPath, activityToDelete.id);
                     await deleteDoc(activityRef);
+
+                    // Mettre à jour le total des points du joueur
+                    const playerRef = doc(db, `artifacts/${appId}/public/data/players`, selectedPlayer.id);
+                    await updateDoc(playerRef, {
+                        totalPoints: selectedPlayer.totalPoints - activityToDelete.points
+                    });
                 } else {
                     setMessage('Erreur: Vous n\'avez pas la permission de supprimer cette activité.');
                 }
@@ -354,8 +361,8 @@ const App = () => {
                 <div className="container mx-auto max-w-sm">
                     <header className="text-center mb-8">
                         <img
-                            src="/image_4d6343.png"
-                            alt="Logo TNT U12"
+                            src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
+                            alt="Logo TNT"
                             className="h-20 w-auto mx-auto mb-4"
                             onError={(e) => {
                                 e.target.onerror = null;
@@ -444,14 +451,13 @@ const App = () => {
         );
     }
 
-
     return (
         <div className="min-h-screen bg-gray-950 text-white p-4 font-sans">
             <div className="container mx-auto max-w-4xl">
                 <header className="flex items-center justify-between p-4 mb-8 bg-gradient-to-r from-gray-900 to-gray-800 rounded-3xl shadow-2xl border border-gray-700">
                     <div className="flex items-center">
                         <img
-                            src="/image_4d6343.png"
+                            src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
                             alt="Logo TNT U12"
                             className="h-20 w-auto mr-4"
                             onError={(e) => {
@@ -471,11 +477,6 @@ const App = () => {
                 
                 <div className="text-center mb-8">
                     <p className="text-gray-400 mt-2 text-sm">ID Utilisateur: {currentUser ? currentUser.uid : 'En attente...'}</p>
-                    {!isFirebaseReady && (
-                        <p className="text-red-400 text-sm mt-2">
-                            Erreur: L'application n'est pas connectée à la base de données. Les données ne sont pas persistantes.
-                        </p>
-                    )}
                 </div>
 
                 {/* Section Classement des joueurs */}
@@ -548,13 +549,13 @@ const App = () => {
                         <div className="mb-6 p-4 bg-gray-800 rounded-2xl shadow-inner border border-gray-700">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-xl font-bold text-white">Total des points</span>
-                                <span className="text-3xl font-extrabold text-orange-400">{totalPoints.toFixed(1)} Pts</span>
+                                <span className="text-3xl font-extrabold text-orange-400">{selectedPlayer.totalPoints.toFixed(1)} Pts</span>
                             </div>
                             <div className="w-full bg-gray-700 rounded-full h-4">
-                                <div className={`bg-gradient-to-r from-teal-400 to-cyan-500 h-4 rounded-full transition-all duration-500`} style={{ width: `${totalProgress}%` }}></div>
+                                <div className={`bg-gradient-to-r from-teal-400 to-cyan-500 h-4 rounded-full transition-all duration-500`} style={{ width: `${Math.min((selectedPlayer.totalPoints / totalGoal) * 100, 100)}%` }}></div>
                             </div>
                             <p className="text-sm text-gray-400 mt-2">Objectif: {totalGoal} points par semaine minimum</p>
-                            {totalPoints >= totalGoal ? (
+                            {selectedPlayer.totalPoints >= totalGoal ? (
                                 <span className="text-green-400 text-sm font-semibold mt-1">Objectif atteint !</span>
                             ) : (
                                 <span className="text-red-400 text-sm font-semibold mt-1">Objectif non atteint.</span>
@@ -574,7 +575,7 @@ const App = () => {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-2xl font-extrabold text-white">{calculatePoints(activity).toFixed(1)} Pts</p>
+                                            <p className="text-2xl font-extrabold text-white">{activity.points.toFixed(1)} Pts</p>
                                             <button
                                                 onClick={() => handleOpenDeleteConfirmation(activity)}
                                                 className={`text-sm font-semibold mt-2 transition-colors ${activity.creatorUid === currentUser.uid ? 'text-red-400 hover:text-red-500' : 'text-gray-500 cursor-not-allowed'}`}
