@@ -86,7 +86,7 @@ const BurgerMenu = ({ currentUser, handleLogout, players }) => {
                             {currentUser.displayName || `Utilisateur #${currentUser.uid.substring(0, 4)}...`}
                             <div className="mt-2 text-xs text-gray-400">Progression : {totalPoints.toFixed(1)}/200 pts</div>
                             <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
-                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${progress}%` }}></div>
                             </div>
                         </div>
                         <button
@@ -124,13 +124,10 @@ const App = () => {
         const unsub = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 setCurrentUser(user);
-                // Si l'utilisateur est anonyme, on peut lui assigner un nom par défaut
-                if (user.isAnonymous) {
-                     // Logique pour s'assurer que l'utilisateur a un nom d'affichage si nécessaire
-                }
             } else {
                 try {
                     await signInAnonymously(auth);
+                    setCurrentUser(null);
                 } catch (error) {
                     console.error("Erreur lors de l'authentification anonyme:", error);
                 }
@@ -241,6 +238,9 @@ const App = () => {
         if (isFirebaseConnected && auth) {
             try {
                 await signOut(auth);
+                // Forcer un rechargement de la page pour réinitialiser l'état de l'application après déconnexion.
+                // Cela garantit que l'écran de connexion est affiché.
+                window.location.reload(); 
             } catch (error) {
                 console.error("Erreur lors de la déconnexion:", error);
             }
@@ -297,9 +297,9 @@ const App = () => {
         
         const renderGroupProgress = (groupName) => {
           const groupGoals = {
-            'Groupe 1': { goal: 50, color: 'bg-orange-400' },
-            'Groupe 2': { goal: 50, color: 'bg-blue-400' },
-            'Groupe 3': { goal: 50, color: 'bg-teal-400' },
+            'Groupe 1': { goal: 50, color: 'bg-orange-500' },
+            'Groupe 2': { goal: 50, color: 'bg-green-500' },
+            'Groupe 3': { goal: 50, color: 'bg-teal-500' },
           };
           const { goal, color } = groupGoals[groupName];
           const points = activities
@@ -324,13 +324,13 @@ const App = () => {
             <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
                 <button
                     onClick={onBack}
-                    className="mb-6 text-blue-400 font-bold hover:text-blue-300 transition-colors duration-200"
+                    className="mb-6 text-orange-400 font-bold hover:text-orange-300 transition-colors duration-200"
                 >
                     &larr; Retour au classement
                 </button>
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-orange-400">{player.name}</h2>
-                    <span className="text-3xl font-extrabold text-blue-400">{player.totalPoints.toFixed(1)} Pts</span>
+                    <span className="text-3xl font-extrabold text-white">{player.totalPoints.toFixed(1)} Pts</span>
                 </div>
 
                 <div className="mb-6 space-y-4">
@@ -345,12 +345,12 @@ const App = () => {
 
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="w-full p-4 mb-6 bg-blue-500 text-white font-bold rounded-2xl shadow-md hover:bg-blue-600 transition-colors duration-200"
+                    className="w-full p-4 mb-6 bg-orange-500 text-white font-bold rounded-2xl shadow-md hover:bg-orange-600 transition-colors duration-200"
                 >
                     Ajouter une activité
                 </button>
 
-                <h3 className="text-xl font-bold text-blue-400 mb-4">Historique des activités</h3>
+                <h3 className="text-xl font-bold text-orange-400 mb-4">Historique des activités</h3>
                 <ul className="space-y-4">
                     {activities.length > 0 ? (
                         activities.map(activity => (
@@ -384,7 +384,7 @@ const App = () => {
                 {isModalOpen && (
                     <div className="fixed inset-0 bg-gray-950 bg-opacity-80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <div className="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-700">
-                            <h3 className="text-2xl font-bold text-blue-400 mb-6">Ajouter une activité</h3>
+                            <h3 className="text-2xl font-bold text-orange-400 mb-6">Ajouter une activité</h3>
                             <form onSubmit={handleAddActivity} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
@@ -432,7 +432,7 @@ const App = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-6 py-2 bg-blue-500 text-white font-bold rounded-full hover:bg-blue-600 transition-colors"
+                                        className="px-6 py-2 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors"
                                     >
                                         Enregistrer
                                     </button>
@@ -484,7 +484,7 @@ const App = () => {
                     />
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white hidden md:block">
                         <span className="text-orange-400">Suivi </span>
-                        <span className="text-blue-400">d'entraînements</span>
+                        <span className="text-gray-400">d'entraînements</span>
                     </h1>
                 </div>
                 {/* Message de bienvenue et menu burger alignés à droite */}
@@ -495,7 +495,7 @@ const App = () => {
                             <p className="text-xl font-bold text-orange-400">{currentUser.displayName || 'Utilisateur'}</p>
                             <div className="mt-2 text-xs text-gray-400">Progression : {players.find(p => p.name === currentUser.displayName)?.totalPoints.toFixed(1) || 0}/200 pts</div>
                             <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
-                                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.name === currentUser.displayName)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
+                                <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${Math.min(((players.find(p => p.name === currentUser.displayName)?.totalPoints || 0) / 200) * 100, 100)}%` }}></div>
                             </div>
                         </div>
                     )}
@@ -510,7 +510,7 @@ const App = () => {
                     <>
                         {/* Section d'ajout de joueur */}
                         <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl mb-8 border border-gray-700">
-                            <h2 className="text-2xl font-bold text-blue-400 mb-4">Ajouter un joueur</h2>
+                            <h2 className="text-2xl font-bold text-orange-400 mb-4">Ajouter un joueur</h2>
                             <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
                                 <input
                                     type="text"
@@ -530,7 +530,7 @@ const App = () => {
 
                         {/* Classement des joueurs */}
                         <div className="p-6 bg-gray-900 rounded-3xl shadow-2xl border border-gray-700">
-                            <h2 className="text-2xl font-bold text-blue-400 mb-4">Classement des joueurs</h2>
+                            <h2 className="text-2xl font-bold text-orange-400 mb-4">Classement des joueurs</h2>
                             <ul className="space-y-4">
                                 {players.map((player, index) => (
                                     <li key={player.id}>
@@ -542,7 +542,7 @@ const App = () => {
                                                 <span className="text-xl font-extrabold text-orange-400 w-8 text-center">{index + 1}.</span>
                                                 <span className="text-lg font-semibold text-white">{player.name}</span>
                                             </div>
-                                            <span className="text-xl font-bold text-blue-400">{player.totalPoints.toFixed(1)} Pts</span>
+                                            <span className="text-xl font-bold text-orange-400">{player.totalPoints.toFixed(1)} Pts</span>
                                         </button>
                                     </li>
                                 ))}
@@ -553,7 +553,7 @@ const App = () => {
             </div>
             
             <footer className="mt-8 text-center text-xs text-gray-500">
-                <p>Version 3.1.0</p>
+                <p>Version 3.2.0</p>
             </footer>
         </div>
     );
