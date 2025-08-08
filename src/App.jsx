@@ -96,14 +96,51 @@ const getEmoji = (points) => {
   return '';
 };
 
+// Nouvelle page pour la gestion des utilisateurs (simplifiée pour l'exemple)
+const UserManagementPage = ({ user, setCurrentPage }) => {
+  // Ici, vous pourriez implémenter la logique pour lister, ajouter, modifier
+  // ou supprimer des utilisateurs. Pour le moment, c'est une coquille.
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-const MainApp = ({ user, handleLogout }) => {
+  useEffect(() => {
+    // Logique de chargement des utilisateurs depuis Firestore
+    setLoading(false);
+  }, []);
+
+  return (
+    <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
+      <div className="max-w-4xl mx-auto">
+        <header className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-400 flex items-center">
+                Gestion des utilisateurs
+            </h1>
+            <button
+                onClick={() => setCurrentPage('MainApp')}
+                className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
+            >
+                Retour
+            </button>
+        </header>
+        <p className="text-gray-400">Cette page est en cours de développement. Elle permettra de gérer les joueurs.</p>
+        <div className="mt-8">
+            {/* Contenu pour la gestion des utilisateurs ici */}
+            <p className="text-gray-500 italic">
+                En tant qu'administrateur, vous pourriez voir la liste des joueurs, les modifier, ou en supprimer.
+            </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedExercise, setSelectedExercise] = useState(EXERCISES[0]);
   const [quantity, setQuantity] = useState('');
-  const [playerName, setPlayerName] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -111,6 +148,7 @@ const MainApp = ({ user, handleLogout }) => {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!db) {
@@ -120,6 +158,7 @@ const MainApp = ({ user, handleLogout }) => {
     }
 
     setLoading(true);
+    // Mise à jour de la référence de la collection pour un chemin unique et public
     const playersCollectionRef = collection(db, `artifacts/${appId}/public/data/team_challenge`);
     const unsubscribe = onSnapshot(playersCollectionRef, (snapshot) => {
       const playersData = snapshot.docs.map(doc => ({
@@ -153,7 +192,8 @@ const MainApp = ({ user, handleLogout }) => {
     const currentWeek = getWeekNumber(new Date());
 
     try {
-      const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerName.toLowerCase());
+      // Utilisation de l'ID utilisateur comme identifiant de document
+      const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
       const playerDoc = await getDoc(playerDocRef);
       const newTraining = {
         exercise: exerciseName,
@@ -179,6 +219,7 @@ const MainApp = ({ user, handleLogout }) => {
       } else {
         const newPlayer = {
           name: playerName,
+          email: user.email,
           dailyPoints: { [today]: pointsEarned },
           weeklyPoints: { [currentWeek]: pointsEarned },
           groupPoints: { [currentWeek]: { [groupName]: pointsEarned } },
@@ -316,10 +357,14 @@ const MainApp = ({ user, handleLogout }) => {
 
   const sortedDays = Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a));
 
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
   return (
     <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
       <div className="max-w-4xl mx-auto">
-        <header className="flex justify-between items-center mb-6">
+        <header className="flex justify-between items-center mb-6 relative">
             <h1 className="text-3xl sm:text-4xl font-bold text-orange-400 flex items-center">
                 <img
                     src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
@@ -328,12 +373,39 @@ const MainApp = ({ user, handleLogout }) => {
                 />
                 Classement
             </h1>
-            <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
-            >
-                Déconnexion
-            </button>
+            
+            {/* Menu burger */}
+            <div className="relative">
+                <button
+                    onClick={toggleMenu}
+                    className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                </button>
+                {isMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-10">
+                        <div className="py-1">
+                            <span className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700">
+                                {playerName}
+                            </span>
+                            <button
+                                onClick={() => { setCurrentPage('UserManagement'); toggleMenu(); }}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+                            >
+                                Gestion des utilisateurs
+                            </button>
+                            <button
+                                onClick={() => { handleLogout(); toggleMenu(); }}
+                                className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
+                            >
+                                Déconnexion
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </header>
         <p className="text-center mb-8 text-gray-400">
           *Note: Votre ID d'utilisateur est <span className="font-mono text-sm break-all">{user.uid}</span>
@@ -434,8 +506,8 @@ const MainApp = ({ user, handleLogout }) => {
                     id="player-name-input"
                     type="text"
                     value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
+                    disabled={true} // Le nom est maintenant lié à l'inscription et ne peut pas être modifié ici
+                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 disabled:opacity-50"
                     placeholder="Entrez votre nom"
                   />
                 </div>
@@ -578,11 +650,11 @@ const MainApp = ({ user, handleLogout }) => {
   );
 };
 
-const AuthPage = ({ setIsLoggedIn, setUserId }) => {
+const AuthPage = ({ setIsLoggedIn, setUserId, setPlayerName }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [playerName, setPlayerName] = useState('');
+  const [playerNameInput, setPlayerNameInput] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -597,7 +669,7 @@ const AuthPage = ({ setIsLoggedIn, setUserId }) => {
         
         const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
         const newPlayer = {
-            name: playerName,
+            name: playerNameInput,
             email: user.email,
             dailyPoints: {},
             weeklyPoints: {},
@@ -608,11 +680,23 @@ const AuthPage = ({ setIsLoggedIn, setUserId }) => {
         await setDoc(playerDocRef, newPlayer);
 
         setUserId(user.uid);
+        setPlayerName(playerNameInput);
         setIsLoggedIn(true);
       } else {
         // Connexion
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+
+        // Récupérer le nom du joueur depuis la base de données après la connexion
+        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
+        const playerDoc = await getDoc(playerDocRef);
+        if (playerDoc.exists()) {
+            setPlayerName(playerDoc.data().name);
+        } else {
+            console.warn("Nom du joueur non trouvé pour l'utilisateur connecté.");
+            setPlayerName("Inconnu");
+        }
+        
         setUserId(user.uid);
         setIsLoggedIn(true);
       }
@@ -645,8 +729,8 @@ const AuthPage = ({ setIsLoggedIn, setUserId }) => {
             <div>
               <input
                 type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
+                value={playerNameInput}
+                onChange={(e) => setPlayerNameInput(e.target.value)}
                 className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
                 placeholder="Votre nom de joueur"
               />
@@ -697,19 +781,34 @@ const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [playerName, setPlayerName] = useState("");
+  const [currentPage, setCurrentPage] = useState('MainApp');
 
   useEffect(() => {
     if (!auth) {
       console.error("Auth n'est pas initialisé.");
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       if (authUser) {
         setUser(authUser);
         setIsLoggedIn(true);
+
+        // Récupérer le nom du joueur lors de la connexion
+        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, authUser.uid);
+        const playerDoc = await getDoc(playerDocRef);
+        if (playerDoc.exists()) {
+            setPlayerName(playerDoc.data().name);
+        } else {
+            console.warn("Nom du joueur non trouvé pour l'utilisateur connecté.");
+            setPlayerName("Inconnu");
+        }
+
       } else {
         setUser(null);
+        setPlayerName("");
         setIsLoggedIn(false);
+        setCurrentPage('MainApp');
       }
       setLoading(false);
     });
@@ -733,10 +832,16 @@ const App = () => {
     );
   }
 
-  return isLoggedIn ? (
-    <MainApp user={user} handleLogout={handleLogout} />
-  ) : (
-    <AuthPage setIsLoggedIn={setIsLoggedIn} setUserId={(uid) => { setUser({ uid }); }} />
+  if (!isLoggedIn) {
+      return <AuthPage setIsLoggedIn={setIsLoggedIn} setUserId={(uid) => { setUser({ uid }); }} setPlayerName={setPlayerName} />;
+  }
+
+  if (currentPage === 'UserManagement') {
+      return <UserManagementPage user={user} setCurrentPage={setCurrentPage} />;
+  }
+
+  return (
+    <MainApp user={user} handleLogout={handleLogout} playerName={playerName} setCurrentPage={setCurrentPage} />
   );
 };
 
