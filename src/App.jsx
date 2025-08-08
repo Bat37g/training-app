@@ -186,7 +186,7 @@ const UserManagementPage = ({ user, setCurrentPage }) => {
             </h1>
             <button
                 onClick={() => setCurrentPage('MainApp')}
-                className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
+                className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300 text-sm sm:text-base"
             >
                 Retour
             </button>
@@ -195,7 +195,7 @@ const UserManagementPage = ({ user, setCurrentPage }) => {
             <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Liste des joueurs</h2>
             <table className="w-full text-left min-w-[700px]">
                 <thead>
-                    <tr className="bg-gray-800">
+                    <tr className="bg-gray-800 text-xs sm:text-sm">
                         <th className="p-3 rounded-tl-xl">Nom</th>
                         <th className="p-3">Email</th>
                         <th className="p-3">ID utilisateur</th>
@@ -204,14 +204,14 @@ const UserManagementPage = ({ user, setCurrentPage }) => {
                 </thead>
                 <tbody>
                     {players.map(player => (
-                        <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200">
+                        <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200 text-sm">
                             <td className="p-3 font-bold">{player.name}</td>
-                            <td className="p-3">{player.email}</td>
-                            <td className="p-3 font-mono text-sm break-all">{player.id}</td>
+                            <td className="p-3 text-xs sm:text-sm">{player.email}</td>
+                            <td className="p-3 font-mono text-[10px] sm:text-xs break-all">{player.id}</td>
                             <td className="p-3">
                                 <button
                                     onClick={() => handleOpenDeletePlayerConfirmation(player)}
-                                    className="px-4 py-2 bg-red-600 text-white text-sm rounded-full shadow-lg hover:bg-red-700 transition-colors"
+                                    className="px-3 py-1 bg-red-600 text-white text-xs sm:text-sm rounded-full shadow-lg hover:bg-red-700 transition-colors"
                                 >
                                     Supprimer
                                 </button>
@@ -491,7 +491,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                 <img
                     src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
                     alt="Logo du club"
-                    className="w-12 h-12 rounded-full mr-4"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full mr-2 sm:mr-4"
                 />
                 Classement
             </h1>
@@ -500,7 +500,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
             <div className="relative">
                 <button
                     onClick={toggleMenu}
-                    className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
+                    className="px-3 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
@@ -534,7 +534,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         </header>
 
         {/* Message de bienvenue */}
-        <p className="text-center mb-8 text-gray-300 text-xl">
+        <p className="text-center mb-8 text-gray-300 text-base sm:text-xl">
           Bonjour, <span className="font-bold text-orange-400">{playerName}</span>!
         </p>
 
@@ -543,60 +543,60 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
           <div className="w-full">
             <table className="w-full text-left min-w-[700px]">
               <thead>
-                <tr className="bg-gray-800">
-                  <th className="p-3 rounded-tl-xl">Rang</th>
-                  <th className="p-3">Joueur</th>
-                  <th className="p-3">Points Totaux</th>
-                  <th className="p-3">Groupe Rouge</th>
-                  <th className="p-3">Groupe Bleu</th>
-                  <th className="p-3 rounded-tr-xl">Groupe Vert</th>
+                <tr className="bg-gray-800 text-xs sm:text-sm">
+                  <th className="p-2 sm:p-3 rounded-tl-xl">Rang</th>
+                  <th className="p-2 sm:p-3">Joueur</th>
+                  <th className="p-2 sm:p-3">Points Totaux</th>
+                  <th className="p-2 sm:p-3">Groupe Rouge</th>
+                  <th className="p-2 sm:p-3">Groupe Bleu</th>
+                  <th className="p-2 sm:p-3 rounded-tr-xl">Groupe Vert</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedPlayers.length > 0 ? (
                   sortedPlayers.map((player, index) => (
-                    <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200">
-                      <td className="p-3">{index + 1}</td>
-                      <td className="p-3 flex items-center space-x-2">
+                    <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200 text-sm">
+                      <td className="p-2 sm:p-3 text-xs sm:text-sm">{index + 1}</td>
+                      <td className="p-2 sm:p-3 flex items-center space-x-1 sm:space-x-2">
                         {index === 0 && <span role="img" aria-label="gold trophy">🥇</span>}
                         {index === 1 && <span role="img" aria-label="silver trophy">🥈</span>}
                         {index === 2 && <span role="img" aria-label="bronze trophy">🥉</span>}
-                        <span onClick={() => handleOpenPlayerDetails(player)} className="font-bold cursor-pointer hover:underline text-blue-300">
+                        <span onClick={() => handleOpenPlayerDetails(player)} className="font-bold cursor-pointer hover:underline text-blue-300 text-sm">
                           {player.name}
                         </span>
                       </td>
-                      <td className="p-3">
-                          <span className="font-bold text-lg">{getTotalWeeklyPoints(player).toFixed(1)} {getEmoji(getTotalWeeklyPoints(player))}</span>
-                          <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                      <td className="p-2 sm:p-3">
+                          <span className="font-bold text-base sm:text-lg">{getTotalWeeklyPoints(player).toFixed(1)} {getEmoji(getTotalWeeklyPoints(player))}</span>
+                          <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getTotalWeeklyPoints(player), 200)}`}
+                              className={`h-1.5 sm:h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getTotalWeeklyPoints(player), 200)}`}
                               style={{ width: `${Math.min(100, (getTotalWeeklyPoints(player) / 200) * 100)}%` }}
                             ></div>
                           </div>
                       </td>
-                      <td className="p-3">
-                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe Rouge').toFixed(1)}</span>
-                          <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                      <td className="p-2 sm:p-3">
+                          <span className="font-bold text-xs sm:text-sm">{getGroupPoints(player, 'Groupe Rouge').toFixed(1)}</span>
+                          <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Rouge'), 50)}`}
+                              className={`h-1.5 sm:h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Rouge'), 50)}`}
                               style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe Rouge') / 50) * 100)}%` }}
                             ></div>
                           </div>
                       </td>
-                      <td className="p-3">
-                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe Bleu').toFixed(1)}</span>
-                          <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                      <td className="p-2 sm:p-3">
+                          <span className="font-bold text-xs sm:text-sm">{getGroupPoints(player, 'Groupe Bleu').toFixed(1)}</span>
+                          <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Bleu'), 50)}`}
+                              className={`h-1.5 sm:h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Bleu'), 50)}`}
                               style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe Bleu') / 50) * 100)}%` }}
                             ></div>
                           </div>
                       </td>
-                      <td className="p-3">
-                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe Vert').toFixed(1)}</span>
-                          <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
+                      <td className="p-2 sm:p-3">
+                          <span className="font-bold text-xs sm:text-sm">{getGroupPoints(player, 'Groupe Vert').toFixed(1)}</span>
+                          <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Vert'), 50)}`}
+                              className={`h-1.5 sm:h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Vert'), 50)}`}
                               style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe Vert') / 50) * 100)}%` }}
                             ></div>
                           </div>
@@ -616,18 +616,18 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         {/* Légende des groupes d'activités, déplacée après le classement */}
         <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-gray-700">
             <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-white">Groupes d'activités</h2>
-            <div className="flex flex-wrap gap-4 text-sm sm:text-base">
+            <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-base">
                 <div className="flex items-center space-x-2">
                     <span className="w-4 h-4 rounded-full bg-red-500"></span>
-                    <span className="text-red-300">Groupe Rouge (Renforcement & sports collectifs)</span>
+                    <span className="text-red-300">Groupe Rouge</span>
                 </div>
                 <div className="flex items-center space-x-2">
                     <span className="w-4 h-4 rounded-full bg-blue-500"></span>
-                    <span className="text-blue-300">Groupe Bleu (Activités nautiques & sports d'eau)</span>
+                    <span className="text-blue-300">Groupe Bleu</span>
                 </div>
                 <div className="flex items-center space-x-2">
                     <span className="w-4 h-4 rounded-full bg-green-500"></span>
-                    <span className="text-green-300">Groupe Vert (Endurance & cardio)</span>
+                    <span className="text-green-300">Groupe Vert</span>
                 </div>
             </div>
         </div>
@@ -635,7 +635,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         <div className="text-center">
           <button
             onClick={handleOpenModal}
-            className="px-6 py-3 bg-orange-500 text-white font-bold rounded-full shadow-lg hover:bg-orange-600 transition-colors duration-300 transform hover:scale-105"
+            className="px-6 py-3 bg-orange-500 text-white font-bold rounded-full shadow-lg hover:bg-orange-600 transition-colors duration-300 transform hover:scale-105 text-sm sm:text-base"
           >
             Ajouter un entraînement
           </button>
@@ -644,26 +644,26 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         {showModal && (
           <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
             <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h3>
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="player-name-input" className="block text-gray-300">Votre nom :</label>
+                  <label htmlFor="player-name-input" className="block text-gray-300 text-sm">Votre nom :</label>
                   <input
                     id="player-name-input"
                     type="text"
                     value={playerName}
                     disabled={true} // Le nom est maintenant lié à l'inscription et ne peut pas être modifié ici
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 disabled:opacity-50 text-sm"
                     placeholder="Entrez votre nom"
                   />
                 </div>
                 <div>
-                  <label htmlFor="exercise-select" className="block text-gray-300">Activité :</label>
+                  <label htmlFor="exercise-select" className="block text-gray-300 text-sm">Activité :</label>
                   <select
                     id="exercise-select"
                     value={selectedExercise.name}
                     onChange={(e) => setSelectedExercise(EXERCISES.find(ex => ex.name === e.target.value))}
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
+                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 text-sm"
                   >
                     {EXERCISES.map((ex) => (
                       <option key={ex.id} value={ex.name}>{ex.emoji} {ex.name}</option>
@@ -671,7 +671,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="quantity-input" className="block text-gray-300">
+                  <label htmlFor="quantity-input" className="block text-gray-300 text-sm">
                     Quantité ({selectedExercise.unit}) :
                   </label>
                   <input
@@ -679,26 +679,26 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                     type="number"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
+                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 text-sm"
                   />
                 </div>
-                <div className="text-center text-gray-400">
+                <div className="text-center text-gray-400 text-xs sm:text-sm">
                   Points estimés : <span className="font-bold text-orange-400">
                     {quantity ? ((parseFloat(quantity) / selectedExercise.pointsPer) * selectedExercise.points).toFixed(1) : '0'}
                   </span>
                 </div>
-                {message && <p className="text-sm text-center text-red-400">{message}</p>}
+                {message && <p className="text-xs text-center text-red-400">{message}</p>}
                 <div className="flex justify-end space-x-4 mt-6">
                   <button
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors duration-200"
+                    className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors duration-200 text-sm"
                   >
                     Annuler
                   </button>
                   <button
                     onClick={handleAddTraining}
                     disabled={loading}
-                    className="px-4 py-2 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200 disabled:opacity-50"
+                    className="px-4 py-2 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200 disabled:opacity-50 text-sm"
                   >
                     {loading ? 'Envoi...' : 'Enregistrer'}
                   </button>
@@ -712,7 +712,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         {showPlayerDetailsModal && selectedPlayer && (
           <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
             <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-2xl border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-semibold mb-4 text-orange-400">Synthèse des entraînements de {selectedPlayer.name}</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Synthèse des entraînements de {selectedPlayer.name}</h3>
               <div className="mb-6">
                 <ProgressBarGauge
                   points={getTotalWeeklyPoints(selectedPlayer)}
@@ -724,15 +724,15 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                 Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a)).map(day => (
                   <div key={day} className="mb-6 p-4 bg-gray-800 rounded-lg">
                     <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-xl font-bold text-blue-300">Journée du {day}</h4>
+                        <h4 className="text-base sm:text-xl font-bold text-blue-300">Journée du {day}</h4>
                     </div>
-                    <ul className="space-y-2">
+                    <ul className="space-y-2 text-sm">
                       {activitiesByDay[day].map((activity) => (
-                        <li key={activity.timestamp} className="bg-gray-700 p-3 rounded-md flex justify-between items-center">
-                          <span>
+                        <li key={activity.timestamp} className="bg-gray-700 p-3 rounded-md flex justify-between items-center flex-wrap">
+                          <span className="flex-grow">
                             <span className="font-semibold">{activity.emoji} {activity.exercise}</span> : {activity.quantity} {activity.unit}
                           </span>
-                          <span className="flex items-center space-x-2">
+                          <span className="flex items-center space-x-2 mt-2 sm:mt-0">
                             <span className="font-bold text-blue-300">{activity.points.toFixed(1)} points</span>
                             {/* Seul l'administrateur peut supprimer une activité */}
                             {user.email === ADMIN_EMAIL && (
@@ -757,7 +757,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
               <div className="text-right mt-6">
                 <button
                   onClick={handleClosePlayerDetails}
-                  className="px-6 py-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-300"
+                  className="px-4 py-2 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-300 text-sm sm:text-base"
                 >
                   Fermer
                 </button>
@@ -771,22 +771,22 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
             <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
                 <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-red-500 shadow-xl">
                     <h3 className="text-xl font-semibold mb-4 text-red-400">Confirmer la suppression</h3>
-                    <p className="text-gray-300 mb-4">
+                    <p className="text-gray-300 mb-4 text-sm">
                         Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> pour <span className="font-bold">{selectedPlayer.name}</span> ? Cette action est irréversible.
                     </p>
-                    {message && <p className="text-sm text-center text-red-400 mb-4">{message}</p>}
+                    {message && <p className="text-xs text-center text-red-400 mb-4">{message}</p>}
                     <div className="flex justify-end space-x-4">
                         <button
                             onClick={handleCloseDeleteConfirmation}
                             disabled={deleting}
-                            className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors disabled:opacity-50"
+                            className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors disabled:opacity-50 text-sm"
                         >
                             Annuler
                         </button>
                         <button
                             onClick={handleDeleteActivity}
                             disabled={deleting}
-                            className="px-4 py-2 bg-red-500 text-white font-bold rounded-full hover:bg-red-600 transition-colors disabled:opacity-50"
+                            className="px-4 py-2 bg-red-500 text-white font-bold rounded-full hover:bg-red-600 transition-colors disabled:opacity-50 text-sm"
                         >
                             {deleting ? 'Suppression...' : 'Supprimer'}
                         </button>
