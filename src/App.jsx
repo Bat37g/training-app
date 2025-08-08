@@ -199,6 +199,10 @@ const App = () => {
             setAuthMessage('Veuillez remplir tous les champs.');
             return;
         }
+        if (!isFirebaseReady) {
+            setAuthMessage('Erreur de connexion à la base de données. Veuillez réessayer plus tard.');
+            return;
+        }
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
@@ -215,6 +219,10 @@ const App = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         setAuthMessage('');
+        if (!isFirebaseReady) {
+            setAuthMessage('Erreur de connexion à la base de données. Veuillez réessayer plus tard.');
+            return;
+        }
         try {
             await signInWithEmailAndPassword(auth, email, password);
         } catch (error) {
@@ -223,7 +231,9 @@ const App = () => {
     };
 
     const handleLogout = () => {
-        signOut(auth);
+        if (auth) {
+            signOut(auth);
+        }
     };
 
     const handleSelectPlayer = (player) => {
