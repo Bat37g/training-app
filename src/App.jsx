@@ -29,24 +29,35 @@ try {
   console.error("Erreur lors de l'initialisation de Firebase:", e);
 }
 
-// Les exercices sont maintenant associés à des groupes spécifiques basés sur le document PDF
+// Les exercices ont été restructurés selon le nouveau tableau
 const EXERCISES = [
-  { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 3' },
-  { name: 'Gainage (Statique/Dynamique)', points: 2, unit: 'secondes', pointsPer: 30, group: 'Groupe 3' },
-  { name: 'Abdominaux', points: 2, unit: 'série de 10', pointsPer: 1, group: 'Groupe 3' },
-  { name: 'Course à pied (Sur piste)', points: 5, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Course à pied (En forêt)', points: 7, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Course à pied (Sur la plage)', points: 10, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Natation (Piscine)', points: 1, unit: 'longueur (25m)', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Natation (Mer)', points: 5, unit: 'minutes', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Vélo (Elliptique/Appartement)', points: 4, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Vélo (Sur route)', points: 5, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Vélo (VTT)', points: 7, unit: 'Km', pointsPer: 1, group: 'Groupe 1' },
-  { name: 'Basket (Salle/Extérieur)', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe 2' },
-  { name: 'Sport de raquettes', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe 2' },
-  { name: 'Autres sports', points: 10, unit: 'minutes', pointsPer: 30, group: 'Autres' },
-  { name: 'Corde à sauter', points: 3, unit: 'minutes', pointsPer: 1, group: 'Autres' },
-  { name: 'Sport nautique (Canoë, Kayak, Ski nautique)', points: 10, unit: 'minutes', pointsPer: 30, group: 'Autres' },
+  // Groupe Rouge
+  { id: 1, name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 2, name: 'Gainage Statique', points: 2, unit: 'secondes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 3, name: 'Gainage Dynamique', points: 2, unit: 'secondes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 14, name: 'Sport de raquettes (plat)', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 15, name: 'Sport de raquettes (sable)', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 19, name: 'Football', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 20, name: 'Volley-ball', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 21, name: 'Hand-ball', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
+  { id: 22, name: 'Abdominaux', points: 2, unit: 'série de 10', pointsPer: 1, group: 'Groupe Rouge', emoji: '🔴' },
+
+  // Groupe Bleu
+  { id: 4, name: 'Basket', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Bleu', emoji: '🔵' },
+  { id: 9, name: 'Natation (Piscine)', points: 1, unit: 'longueur (25m)', pointsPer: 1, group: 'Groupe Bleu', emoji: '🔵' },
+  { id: 10, name: 'Natation (Mer)', points: 5, unit: 'minutes', pointsPer: 5, group: 'Groupe Bleu', emoji: '🔵' },
+  { id: 11, name: 'Canoë', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Bleu', emoji: '🔵' },
+  { id: 12, name: 'Kayak', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Bleu', emoji: '🔵' },
+  { id: 13, name: 'Ski nautique', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Bleu', emoji: '🔵' },
+  
+  // Groupe Vert
+  { id: 5, name: 'Corde à sauter', points: 3, unit: 'minutes', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
+  { id: 6, name: 'Course à pied (piste)', points: 5, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
+  { id: 7, name: 'Course à pied (forêt)', points: 7, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
+  { id: 8, name: 'Course à pied (plage)', points: 10, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
+  { id: 16, name: 'Vélo (Elliptique)', points: 4, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
+  { id: 17, name: 'Vélo (route)', points: 5, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
+  { id: 18, name: 'Vélo (VTT)', points: 7, unit: 'Km', pointsPer: 1, group: 'Groupe Vert', emoji: '🟢' },
 ];
 
 const getWeekNumber = (d) => {
@@ -411,6 +422,25 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
           *Note: Votre ID d'utilisateur est <span className="font-mono text-sm break-all">{user.uid}</span>
         </p>
 
+        {/* Légende des groupes d'activités */}
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-gray-700">
+            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-white">Groupes d'activités</h2>
+            <div className="flex flex-wrap gap-4 text-sm sm:text-base">
+                <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 rounded-full bg-red-500"></span>
+                    <span className="text-red-300">Groupe Rouge (Renforcement & sports collectifs)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-500"></span>
+                    <span className="text-blue-300">Groupe Bleu (Activités nautiques & sports d'eau)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <span className="w-4 h-4 rounded-full bg-green-500"></span>
+                    <span className="text-green-300">Groupe Vert (Endurance & cardio)</span>
+                </div>
+            </div>
+        </div>
+
         <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
           <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de l'équipe (semaine en cours)</h2>
           <div className="w-full">
@@ -420,9 +450,9 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                   <th className="p-3 rounded-tl-xl">Rang</th>
                   <th className="p-3">Joueur</th>
                   <th className="p-3">Points Totaux</th>
-                  <th className="p-3">Groupe 1</th>
-                  <th className="p-3">Groupe 2</th>
-                  <th className="p-3 rounded-tr-xl">Groupe 3</th>
+                  <th className="p-3">Groupe Rouge</th>
+                  <th className="p-3">Groupe Bleu</th>
+                  <th className="p-3 rounded-tr-xl">Groupe Vert</th>
                 </tr>
               </thead>
               <tbody>
@@ -448,29 +478,29 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                           </div>
                       </td>
                       <td className="p-3">
-                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe 1').toFixed(1)}</span>
+                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe Rouge').toFixed(1)}</span>
                           <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe 1'), 50)}`}
-                              style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe 1') / 50) * 100)}%` }}
+                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Rouge'), 50)}`}
+                              style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe Rouge') / 50) * 100)}%` }}
                             ></div>
                           </div>
                       </td>
                       <td className="p-3">
-                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe 2').toFixed(1)}</span>
+                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe Bleu').toFixed(1)}</span>
                           <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe 2'), 50)}`}
-                              style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe 2') / 50) * 100)}%` }}
+                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Bleu'), 50)}`}
+                              style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe Bleu') / 50) * 100)}%` }}
                             ></div>
                           </div>
                       </td>
                       <td className="p-3">
-                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe 3').toFixed(1)}</span>
+                          <span className="font-bold text-sm">{getGroupPoints(player, 'Groupe Vert').toFixed(1)}</span>
                           <div className="w-full bg-gray-700 rounded-full h-2.5 mt-1">
                             <div
-                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe 3'), 50)}`}
-                              style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe 3') / 50) * 100)}%` }}
+                              className={`h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getGroupPoints(player, 'Groupe Vert'), 50)}`}
+                              style={{ width: `${Math.min(100, (getGroupPoints(player, 'Groupe Vert') / 50) * 100)}%` }}
                             ></div>
                           </div>
                       </td>
@@ -520,7 +550,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                     className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
                   >
                     {EXERCISES.map((ex) => (
-                      <option key={ex.name} value={ex.name}>{ex.name}</option>
+                      <option key={ex.id} value={ex.name}>{ex.emoji} {ex.name}</option>
                     ))}
                   </select>
                 </div>
@@ -584,7 +614,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                       {activitiesByDay[day].map((activity) => (
                         <li key={activity.timestamp} className="bg-gray-700 p-3 rounded-md flex justify-between items-center">
                           <span>
-                            <span className="font-semibold">{activity.exercise}</span> : {activity.quantity} {activity.unit}
+                            <span className="font-semibold">{activity.emoji} {activity.exercise}</span> : {activity.quantity} {activity.unit}
                           </span>
                           <span className="flex items-center space-x-2">
                             <span className="font-bold text-blue-300">{activity.points.toFixed(1)} points</span>
