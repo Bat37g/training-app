@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
 // Initialisation de Firebase avec les configurations fournies par l'environnement
@@ -37,34 +37,38 @@ if (Object.keys(firebaseConfig).length > 0) {
 }
 
 const EXERCISES = [
-  { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10, group: 'Groupe 1' },
-  { name: 'Pompes', points: 10, unit: 'répétitions', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Gainage', points: 15, unit: 'minutes', pointsPer: 15, group: 'Groupe 1' },
-  { name: 'Corde à sauter', points: 20, unit: 'minutes', pointsPer: 10, group: 'Groupe 1' },
-  { name: 'Course à pied', points: 25, unit: 'minutes', pointsPer: 15, group: 'Groupe 1' },
-  { name: 'Squats', points: 5, unit: 'répétitions', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Fentes', points: 5, unit: 'répétitions', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Abdominaux', points: 10, unit: 'répétitions', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Tractions', points: 15, unit: 'répétitions', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Dips', points: 10, unit: 'répétitions', pointsPer: 5, group: 'Groupe 1' },
-  { name: 'Rameur', points: 20, unit: 'minutes', pointsPer: 10, group: 'Groupe 1' },
-  { name: 'Vélo', points: 25, unit: 'minutes', pointsPer: 10, group: 'Groupe 1' },
-  { name: 'Natation', points: 30, unit: 'minutes', pointsPer: 15, group: 'Groupe 1' },
-  { name: 'Boxe', points: 35, unit: 'minutes', pointsPer: 15, group: 'Groupe 1' },
-  { name: 'CrossFit', points: 40, unit: 'minutes', pointsPer: 20, group: 'Groupe 1' },
+  { name: 'Étirements', points: 5, unit: 'minutes', pointsPer: 10 },
+  { name: 'Pompes', points: 10, unit: 'répétitions', pointsPer: 5 },
+  { name: 'Gainage', points: 15, unit: 'minutes', pointsPer: 15 },
+  { name: 'Corde à sauter', points: 20, unit: 'minutes', pointsPer: 10 },
+  { name: 'Course à pied', points: 25, unit: 'minutes', pointsPer: 15 },
+  { name: 'Squats', points: 5, unit: 'répétitions', pointsPer: 5 },
+  { name: 'Fentes', points: 5, unit: 'répétitions', pointsPer: 5 },
+  { name: 'Abdominaux', points: 10, unit: 'répétitions', pointsPer: 5 },
+  { name: 'Tractions', points: 15, unit: 'répétitions', pointsPer: 5 },
+  { name: 'Dips', points: 10, unit: 'répétitions', pointsPer: 5 },
+  { name: 'Rameur', points: 20, unit: 'minutes', pointsPer: 10 },
+  { name: 'Vélo', points: 25, unit: 'minutes', pointsPer: 10 },
+  { name: 'Natation', points: 30, unit: 'minutes', pointsPer: 15 },
+  { name: 'Boxe', points: 35, unit: 'minutes', pointsPer: 15 },
+  { name: 'CrossFit', points: 40, unit: 'minutes', pointsPer: 20 },
 ];
 
 const App = () => {
+  // === GESTION DE L'ÉTAT DE L'APPLICATION ===
   const [players, setPlayers] = useState([]);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(true); // Faux pour l'instant, à adapter plus tard
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'admin'
 
+  // === GESTION DES MODALES ET FORMULAIRES ===
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
-  const [newPlayerGroup, setNewPlayerGroup] = useState('Groupe 1');
 
   const [isAddingActivity, setIsAddingActivity] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState('');
@@ -85,7 +89,7 @@ const App = () => {
   const [playerToDelete, setPlayerToDelete] = useState(null);
   const [deletingPlayer, setDeletingPlayer] = useState(false);
 
-  // Authentification et chargement initial
+  // === AUTHENTIFICATION ET CHARGEMENT INITIAL ===
   useEffect(() => {
     if (!isFirebaseConnected) {
       setLoading(false);
@@ -119,7 +123,7 @@ const App = () => {
     return () => unsub();
   }, []);
 
-  // Chargement des joueurs
+  // === CHARGEMENT DES JOUEURS (ABONNEMENT EN TEMPS RÉEL) ===
   useEffect(() => {
     if (!isFirebaseConnected || !isAuthReady || !userId) return;
 
@@ -141,7 +145,25 @@ const App = () => {
     return () => unsub();
   }, [isFirebaseConnected, isAuthReady, userId]);
 
-  // Gestion des actions
+  // === LOGIQUE DE L'APPLICATION ===
+  const handleSignOut = async () => {
+    if (!isFirebaseConnected) return;
+    try {
+      await signOut(auth);
+      // Réinitialiser les états
+      setUserId(null);
+      setSelectedPlayer(null);
+      setCurrentView('dashboard');
+      setPlayers([]);
+      setError('');
+      setIsMenuOpen(false);
+      console.log("Déconnexion réussie.");
+    } catch (e) {
+      console.error("Erreur lors de la déconnexion:", e);
+      setError("Erreur lors de la déconnexion.");
+    }
+  };
+
   const handleAddPlayer = async () => {
     if (newPlayerName.trim() === '') return;
     setLoading(true);
@@ -149,7 +171,6 @@ const App = () => {
       const playerDocRef = doc(db, "artifacts", appId, "public", "data", "players", newPlayerName);
       await setDoc(playerDocRef, {
         name: newPlayerName,
-        group: newPlayerGroup,
         activities: []
       });
       setNewPlayerName('');
@@ -314,17 +335,69 @@ const App = () => {
     return Math.floor(Number(activity.value) / exercise.pointsPer) * exercise.points;
   };
 
+  // === RENDU DE L'APPLICATION ===
   return (
     <div className="bg-gray-900 min-h-screen p-8 text-white font-sans antialiased relative pb-16">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-12">
-          <h1 className="text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600 mb-2">
-            Tableau de Bord TNT Training
-          </h1>
-          <p className="text-center text-gray-400 text-lg">
-            Suivez les performances de vos joueurs et attribuez des points.
-          </p>
+        {/* En-tête de l'application avec le menu burger */}
+        <header className="flex justify-between items-center mb-12">
+          <button onClick={() => setIsMenuOpen(true)} className="p-2 text-gray-400 hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <div className="flex-grow text-center">
+            <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
+              Tableau de Bord
+            </h1>
+            <p className="text-center text-gray-400 text-lg">
+              Suivez les performances de vos joueurs.
+            </p>
+          </div>
+          {/* Bouton pour ajouter un joueur, si sur le dashboard */}
+          {currentView === 'dashboard' && !selectedPlayer && !isAddingPlayer && (
+            <button
+              onClick={() => setIsAddingPlayer(true)}
+              className="bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg hover:bg-orange-600 transition-transform transform hover:scale-105 font-semibold text-sm"
+            >
+              Ajouter un Joueur
+            </button>
+          )}
         </header>
+
+        {/* Menu latéral (burger) */}
+        <div className={`fixed inset-y-0 left-0 bg-gray-800 w-64 p-8 z-50 transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out`}>
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-xl font-bold text-white">Menu</h2>
+            <button onClick={() => setIsMenuOpen(false)} className="p-2 text-gray-400 hover:text-white transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-gray-400 mb-6">Connecté en tant que:</p>
+          <p className="text-white font-bold mb-8 break-all">{userId}</p>
+          <ul className="space-y-4">
+            <li>
+              <button onClick={() => { setCurrentView('dashboard'); setIsMenuOpen(false); }} className="text-orange-400 hover:text-orange-500 transition-colors w-full text-left">
+                Tableau de Bord
+              </button>
+            </li>
+            {isAdmin && (
+              <li>
+                <button onClick={() => { setCurrentView('admin'); setIsMenuOpen(false); }} className="text-orange-400 hover:text-orange-500 transition-colors w-full text-left">
+                  Gérer les joueurs
+                </button>
+              </li>
+            )}
+            <li>
+              <button onClick={handleSignOut} className="bg-red-600 text-white px-4 py-2 rounded-full w-full text-left hover:bg-red-700 transition-colors mt-8">
+                Déconnexion
+              </button>
+            </li>
+          </ul>
+        </div>
+        {isMenuOpen && <div className="fixed inset-0 bg-gray-900 bg-opacity-50 z-40" onClick={() => setIsMenuOpen(false)}></div>}
 
         {loading && (
           <div className="flex justify-center items-center h-64">
@@ -338,116 +411,74 @@ const App = () => {
           </div>
         )}
 
-        {!loading && !selectedPlayer && (
+        {/* Vue principale : Tableau de bord des joueurs */}
+        {!loading && !selectedPlayer && currentView === 'dashboard' && (
           <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl mb-8">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-3xl font-bold text-gray-100">Classement des Joueurs</h2>
-              {!isAddingPlayer && (
-                <button
-                  onClick={() => setIsAddingPlayer(true)}
-                  className="bg-orange-500 text-white px-6 py-3 rounded-full shadow-lg hover:bg-orange-600 transition-transform transform hover:scale-105 font-semibold"
-                >
-                  Ajouter un Joueur
-                </button>
+              {isAddingPlayer && (
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="text"
+                    value={newPlayerName}
+                    onChange={(e) => setNewPlayerName(e.target.value)}
+                    placeholder="Nom du joueur"
+                    className="flex-grow bg-gray-800 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <button
+                    onClick={handleAddPlayer}
+                    className="bg-green-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-green-700 transition-transform transform hover:scale-105 font-semibold"
+                  >
+                    Confirmer
+                  </button>
+                  <button
+                    onClick={() => setIsAddingPlayer(false)}
+                    className="bg-gray-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-gray-500 transition-transform transform hover:scale-105 font-semibold"
+                  >
+                    Annuler
+                  </button>
+                </div>
               )}
             </div>
-
-            {isAddingPlayer && (
-              <div className="mb-6 p-4 bg-gray-700 rounded-xl shadow-inner flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
-                <input
-                  type="text"
-                  value={newPlayerName}
-                  onChange={(e) => setNewPlayerName(e.target.value)}
-                  placeholder="Nom du joueur"
-                  className="flex-grow bg-gray-800 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-                <select
-                  value={newPlayerGroup}
-                  onChange={(e) => setNewPlayerGroup(e.target.value)}
-                  className="bg-gray-800 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="Groupe 1">Groupe 1</option>
-                  <option value="Groupe 2">Groupe 2</option>
-                </select>
-                <button
-                  onClick={handleAddPlayer}
-                  className="bg-green-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-green-700 transition-transform transform hover:scale-105 font-semibold"
-                >
-                  Confirmer
-                </button>
-                <button
-                  onClick={() => setIsAddingPlayer(false)}
-                  className="bg-gray-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-gray-500 transition-transform transform hover:scale-105 font-semibold"
-                >
-                  Annuler
-                </button>
+            {!isAddingPlayer && (
+              <div className="space-y-4">
+                {sortedPlayers.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">Aucun joueur n'a encore été ajouté.</p>
+                ) : (
+                  sortedPlayers.map((player) => (
+                    <div key={player.id} className="bg-gray-700 p-5 rounded-xl shadow-md flex items-center justify-between transition-all duration-300 hover:bg-gray-600">
+                      <div
+                        className="flex-grow cursor-pointer"
+                        onClick={() => setSelectedPlayer(player)}
+                      >
+                        <h3 className="text-2xl font-bold text-orange-400">{player.name}</h3>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <span className="text-3xl font-extrabold text-orange-400">
+                          {calculateTotalPoints(player)} pts
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDeletePlayerConfirmation(player);
+                          }}
+                          className="p-2 text-red-400 hover:text-red-600 transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
-
-            <div className="space-y-4">
-              {sortedPlayers.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Aucun joueur n'a encore été ajouté.</p>
-              ) : (
-                sortedPlayers.map((player) => (
-                  <div key={player.id} className="bg-gray-700 p-5 rounded-xl shadow-md flex items-center justify-between transition-all duration-300 hover:bg-gray-600">
-                    <div
-                      className="flex-grow cursor-pointer"
-                      onClick={() => setSelectedPlayer(player)}
-                    >
-                      <h3 className="text-2xl font-bold text-orange-400">{player.name}</h3>
-                      <p className="text-gray-400">{player.group}</p>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <span className="text-3xl font-extrabold text-orange-400">
-                        {calculateTotalPoints(player)} pts
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDeletePlayerConfirmation(player);
-                        }}
-                        className="p-2 text-red-400 hover:text-red-600 transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         )}
 
-        {isConfirmingDeletePlayer && (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-              <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression du joueur</h3>
-              <p className="text-gray-300 mb-6">
-                Êtes-vous sûr de vouloir supprimer le joueur <span className="font-bold text-orange-400">{playerToDelete.name}</span> et toutes ses activités ? Cette action est irréversible.
-              </p>
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={handleCloseDeletePlayerConfirmation}
-                  disabled={deletingPlayer}
-                  className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleDeletePlayer}
-                  disabled={deletingPlayer}
-                  className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                  {deletingPlayer ? 'Suppression...' : 'Supprimer'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {selectedPlayer && (
+        {/* Vue principale : Détails du joueur */}
+        {selectedPlayer && currentView === 'dashboard' && (
           <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <button
@@ -462,7 +493,7 @@ const App = () => {
                 <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-600">
                   {selectedPlayer.name}
                 </h2>
-                <p className="text-gray-400 text-xl">{selectedPlayer.group} - <span className="font-bold">{calculateTotalPoints(selectedPlayer)} pts</span></p>
+                <p className="text-gray-400 text-xl"><span className="font-bold">{calculateTotalPoints(selectedPlayer)} pts</span></p>
               </div>
               <button
                 onClick={() => handleOpenAddActivity(selectedPlayer)}
@@ -513,6 +544,43 @@ const App = () => {
           </div>
         )}
 
+        {/* Vue principale : Page d'administration */}
+        {!loading && currentView === 'admin' && (
+          <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl mb-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold text-gray-100">Gérer les joueurs</h2>
+              <button
+                onClick={() => setCurrentView('dashboard')}
+                className="text-gray-400 hover:text-orange-500 transition-colors"
+              >
+                Retour au tableau de bord
+              </button>
+            </div>
+            <div className="space-y-4">
+              {players.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">Aucun joueur n'a encore été ajouté.</p>
+              ) : (
+                players.map((player) => (
+                  <div key={player.id} className="bg-gray-700 p-5 rounded-xl shadow-md flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-bold text-orange-400">{player.name}</h3>
+                    </div>
+                    <button
+                      onClick={() => handleOpenDeletePlayerConfirmation(player)}
+                      className="p-2 text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* === MODALES === */}
         {/* Modale d'ajout d'activité */}
         {isAddingActivity && (
           <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
@@ -662,9 +730,37 @@ const App = () => {
             </div>
         )}
 
+        {/* Modale de confirmation de suppression de joueur */}
+        {isConfirmingDeletePlayer && (
+          <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
+              <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression du joueur</h3>
+              <p className="text-gray-300 mb-6">
+                Êtes-vous sûr de vouloir supprimer le joueur <span className="font-bold text-orange-400">{playerToDelete.name}</span> et toutes ses activités ? Cette action est irréversible.
+              </p>
+              <div className="flex justify-end space-x-4">
+                <button
+                  onClick={handleCloseDeletePlayerConfirmation}
+                  disabled={deletingPlayer}
+                  className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleDeletePlayer}
+                  disabled={deletingPlayer}
+                  className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {deletingPlayer ? 'Suppression...' : 'Supprimer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
       <footer className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-gray-500 text-sm">
-        Version 3.8.1
+        Version 3.8.2
       </footer>
     </div>
   );
