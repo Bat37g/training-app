@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
+// Configuration Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
   authDomain: "tnt-training.firebaseapp.com",
@@ -13,7 +13,6 @@ const firebaseConfig = {
   appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
   measurementId: "G-B74Q9T0KMB"
 };
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 let app;
@@ -65,56 +64,58 @@ const getBackgroundColor = (points, goal) => {
   return 'bg-red-500';
 };
 
-const App = () => {
+const ProgressBarGauge = ({ points, goal, title }) => {
+  const percentage = Math.min(100, (points / goal) * 100);
+  const progressColor = getBackgroundColor(points, goal);
+
+  return (
+    <div className="w-full flex flex-col items-center p-2 bg-gray-800 rounded-lg shadow-inner">
+      <div className="text-sm font-semibold text-gray-300 mb-1">{title}</div>
+      <div className="relative w-full h-4 bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${progressColor}`}
+          style={{ width: `${percentage}%` }}
+        ></div>
+      </div>
+      <div className="w-full flex justify-between mt-1 text-xs font-mono">
+        <span className="text-gray-400">0</span>
+        <span className="font-bold text-blue-300">
+          {points.toFixed(1)} / {goal} pts
+        </span>
+        <span className="text-gray-400">{goal}</span>
+      </div>
+    </div>
+  );
+};
+
+const getEmoji = (points) => {
+  if (points >= 200) return '🎉';
+  if (points >= 150) return '💪';
+  if (points >= 100) return '👍';
+  if (points >= 50) return '🏃‍♂️';
+  return '';
+};
+
+
+const MainApp = ({ user, handleLogout }) => {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [selectedExercise, setSelectedExercise] = useState(EXERCISES[0]);
   const [quantity, setQuantity] = useState('');
   const [playerName, setPlayerName] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [showPlayerDetailsModal, setShowPlayerDetailsModal] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Initialisation de l'authentification et écoute des changements
   useEffect(() => {
-    if (!auth) {
-      console.error("Auth n'est pas initialisé.");
-      setErrorMessage("La connexion à la base de données a échoué. Veuillez vérifier la configuration.");
-      return;
-    }
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      try {
-        if (user) {
-          setUserId(user.uid);
-          setIsLoggedIn(true);
-        } else {
-          // Si il n'y a pas d'utilisateur, l'app reste sur la page de connexion
-          setIsLoggedIn(false);
-          setUserId(null);
-        }
-        setIsAuthReady(true);
-      } catch (error) {
-        console.error("Erreur d'authentification:", error);
-        setErrorMessage("Erreur d'authentification. Veuillez réessayer.");
-        setIsAuthReady(true);
-      }
-    });
-    return () => unsubscribe();
-  }, [auth]);
-
-  // Écoute des données de Firestore en temps réel
-  useEffect(() => {
-    if (!db || !isAuthReady || errorMessage || !isLoggedIn) {
-      console.log("Firestore non prêt ou non connecté, ne pas écouter les données.");
-      setLoading(false);
+    if (!db) {
+      console.error("Firestore n'est pas initialisé.");
+      setErrorMessage("La connexion à la base de données a échoué.");
       return;
     }
 
@@ -135,65 +136,7 @@ const App = () => {
     });
 
     return () => unsubscribe();
-  }, [isAuthReady, db, appId, errorMessage, isLoggedIn]);
-
-  const handleLogin = async () => {
-    if (!playerName) {
-      setMessage("Veuillez entrer un nom de joueur.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage('');
-    try {
-      const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerName.toLowerCase());
-      const playerDoc = await getDoc(playerDocRef);
-
-      if (!playerDoc.exists()) {
-          // Crée un nouveau profil
-          const newPlayer = {
-              name: playerName,
-              dailyPoints: {},
-              weeklyPoints: {},
-              groupPoints: {},
-              allActivities: [],
-              lastLogin: new Date().toISOString()
-          };
-          await setDoc(playerDocRef, newPlayer);
-          console.log("Nouveau joueur créé :", playerName);
-      } else {
-          // Met à jour le profil existant
-          await updateDoc(playerDocRef, { lastLogin: new Date().toISOString() });
-          console.log("Connexion réussie pour le joueur :", playerName);
-      }
-
-      // Utilisation du token d'authentification
-      // Note: Le système génère ce token, il n'est pas géré par l'utilisateur
-      if (initialAuthToken) {
-          await signInWithCustomToken(auth, initialAuthToken);
-      }
-
-      setIsLoggedIn(true);
-      setMessage("Connexion réussie !");
-
-    } catch (e) {
-      console.error("Erreur de connexion/création du joueur:", e);
-      setMessage("Erreur lors de la connexion. Veuillez réessayer.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setIsLoggedIn(false);
-      setPlayerName('');
-      console.log("Déconnexion réussie.");
-    } catch (error) {
-      console.error("Erreur de déconnexion:", error);
-    }
-  };
+  }, [db, appId, user]);
 
   const handleAddTraining = async () => {
     if (!playerName || !quantity) {
@@ -343,7 +286,7 @@ const App = () => {
       setShowDeleteConfirmation(false);
   };
 
-  if (loading && !errorMessage && isAuthReady) {
+  if (loading && !errorMessage) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
         <div className="text-xl">Chargement...</div>
@@ -352,44 +295,14 @@ const App = () => {
   }
 
   if (errorMessage) {
-      return (
-          <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white p-4 text-center">
-              <div className="bg-gray-900 rounded-lg p-8">
-                  <p className="text-xl text-red-400 font-bold mb-4">Erreur</p>
-                  <p className="text-gray-300">{errorMessage}</p>
-              </div>
-          </div>
-      );
-  }
-
-  if (!isLoggedIn) {
-      return (
-          <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
-              <div className="bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-sm border border-orange-500">
-                  <h1 className="text-2xl font-bold text-center mb-6 text-orange-400">
-                      Connexion ou Création de joueur
-                  </h1>
-                  <p className="text-gray-400 text-center mb-6">
-                      Entrez votre nom pour vous connecter ou créer un nouveau profil.
-                  </p>
-                  <input
-                      type="text"
-                      value={playerName}
-                      onChange={(e) => setPlayerName(e.target.value)}
-                      className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 mb-4"
-                      placeholder="Votre nom de joueur"
-                  />
-                  <button
-                      onClick={handleLogin}
-                      disabled={loading}
-                      className="w-full px-4 py-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-300 disabled:opacity-50"
-                  >
-                      {loading ? 'Chargement...' : 'Commencer'}
-                  </button>
-                  {message && <p className="text-sm text-center text-red-400 mt-4">{message}</p>}
-              </div>
-          </div>
-      );
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white p-4 text-center">
+        <div className="bg-gray-900 rounded-lg p-8">
+          <p className="text-xl text-red-400 font-bold mb-4">Erreur</p>
+          <p className="text-gray-300">{errorMessage}</p>
+        </div>
+      </div>
+    );
   }
 
   const activitiesByDay = selectedPlayer ? selectedPlayer.allActivities.reduce((acc, activity) => {
@@ -401,41 +314,7 @@ const App = () => {
     return acc;
   }, {}) : {};
 
-  const getEmoji = (points) => {
-    if (points >= 200) return '🎉';
-    if (points >= 150) return '💪';
-    if (points >= 100) return '👍';
-    if (points >= 50) return '🏃‍♂️';
-    return '';
-  };
-
   const sortedDays = Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a));
-
-  const ProgressBarGauge = ({ points, goal, title }) => {
-    const percentage = Math.min(100, (points / goal) * 100);
-    const progressColor = getBackgroundColor(points, goal);
-    const isCompleted = points >= goal;
-
-    return (
-      <div className="w-full flex flex-col items-center p-2 bg-gray-800 rounded-lg shadow-inner">
-        <div className="text-sm font-semibold text-gray-300 mb-1">{title}</div>
-        <div className="relative w-full h-4 bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${progressColor}`}
-            style={{ width: `${percentage}%` }}
-          ></div>
-        </div>
-        <div className="w-full flex justify-between mt-1 text-xs font-mono">
-          <span className="text-gray-400">0</span>
-          <span className="font-bold text-blue-300">
-            {points.toFixed(1)} / {goal} pts
-          </span>
-          <span className="text-gray-400">{goal}</span>
-        </div>
-      </div>
-    );
-  };
-
 
   return (
     <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
@@ -456,9 +335,8 @@ const App = () => {
                 Déconnexion
             </button>
         </header>
-
         <p className="text-center mb-8 text-gray-400">
-          *Note: L'ID de session est <span className="font-mono text-sm break-all">{userId}</span>
+          *Note: Votre ID d'utilisateur est <span className="font-mono text-sm break-all">{user.uid}</span>
         </p>
 
         <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
@@ -617,7 +495,6 @@ const App = () => {
           <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
             <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-2xl border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-semibold mb-4 text-orange-400">Synthèse des entraînements de {selectedPlayer.name}</h3>
-
               <div className="mb-6">
                 <ProgressBarGauge
                   points={getTotalWeeklyPoints(selectedPlayer)}
@@ -625,7 +502,6 @@ const App = () => {
                   title={`Objectif hebdomadaire: 200 points`}
                 />
               </div>
-
               {Object.keys(activitiesByDay).length > 0 ? (
                 Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a)).map(day => (
                   <div key={day} className="mb-6 p-4 bg-gray-800 rounded-lg">
@@ -697,9 +573,170 @@ const App = () => {
                 </div>
             </div>
         )}
-
       </div>
     </div>
+  );
+};
+
+const AuthPage = ({ setIsLoggedIn, setUserId }) => {
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [playerName, setPlayerName] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAuth = async () => {
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      if (isRegistering) {
+        // Inscription
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
+        const newPlayer = {
+            name: playerName,
+            email: user.email,
+            dailyPoints: {},
+            weeklyPoints: {},
+            groupPoints: {},
+            allActivities: [],
+            lastLogin: new Date().toISOString()
+        };
+        await setDoc(playerDocRef, newPlayer);
+
+        setUserId(user.uid);
+        setIsLoggedIn(true);
+      } else {
+        // Connexion
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        setUserId(user.uid);
+        setIsLoggedIn(true);
+      }
+    } catch (error) {
+      console.error("Erreur d'authentification:", error);
+      let message = "Erreur d'authentification. Veuillez réessayer.";
+      if (error.code === 'auth/email-already-in-use') {
+        message = "Cette adresse e-mail est déjà utilisée.";
+      } else if (error.code === 'auth/invalid-email') {
+        message = "L'adresse e-mail n'est pas valide.";
+      } else if (error.code === 'auth/weak-password') {
+        message = "Le mot de passe doit contenir au moins 6 caractères.";
+      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = "Identifiants incorrects.";
+      }
+      setErrorMessage(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
+      <div className="bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-sm border border-orange-500">
+        <h1 className="text-2xl font-bold text-center mb-6 text-orange-400">
+          {isRegistering ? 'Inscription' : 'Connexion'}
+        </h1>
+        <div className="space-y-4">
+          {isRegistering && (
+            <div>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
+                placeholder="Votre nom de joueur"
+              />
+            </div>
+          )}
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
+              placeholder="Adresse e-mail"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500"
+              placeholder="Mot de passe"
+            />
+          </div>
+          {errorMessage && <p className="text-sm text-center text-red-400">{errorMessage}</p>}
+          <button
+            onClick={handleAuth}
+            disabled={loading}
+            className="w-full px-4 py-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-300 disabled:opacity-50"
+          >
+            {loading ? 'Chargement...' : (isRegistering ? 'S\'inscrire' : 'Se connecter')}
+          </button>
+        </div>
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setIsRegistering(!isRegistering)}
+            className="text-orange-400 text-sm hover:underline"
+          >
+            {isRegistering ? 'Vous avez déjà un compte ? Connectez-vous.' : 'Vous n\'avez pas de compte ? Inscrivez-vous.'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const App = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!auth) {
+      console.error("Auth n'est pas initialisé.");
+      return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      if (authUser) {
+        setUser(authUser);
+        setIsLoggedIn(true);
+      } else {
+        setUser(null);
+        setIsLoggedIn(false);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // onAuthStateChanged va gérer la réinitialisation de l'état
+    } catch (error) {
+      console.error("Erreur de déconnexion:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
+        <div className="text-xl">Chargement de l'authentification...</div>
+      </div>
+    );
+  }
+
+  return isLoggedIn ? (
+    <MainApp user={user} handleLogout={handleLogout} />
+  ) : (
+    <AuthPage setIsLoggedIn={setIsLoggedIn} setUserId={(uid) => { setUser({ uid }); }} />
   );
 };
 
