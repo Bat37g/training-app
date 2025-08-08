@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 
 // Initialisation de Firebase avec les configurations fournies par l'environnement
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
@@ -224,7 +224,7 @@ const App = () => {
       setDeleting(true);
       try {
         const activityRef = doc(db, 'artifacts', appId, 'users', userId, 'players', selectedPlayer.id, 'activities', activityToDelete.id);
-        await setDoc(activityRef, {}, { merge: false }); // Utiliser setDoc avec un document vide pour une suppression 'douce'
+        await deleteDoc(activityRef); // Utiliser deleteDoc pour une suppression permanente
         handleCloseDeleteConfirmation();
         setMessage('');
       } catch (error) {
