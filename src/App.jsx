@@ -549,8 +549,10 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
                   <span className="text-lg font-bold text-orange-400 w-6 text-center">{index + 1}.</span>
                   <span className="font-semibold text-white">{player.name}</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-orange-400 font-bold">{getTotalWeeklyPoints(player).toFixed(1)} pts</span>
+                <div className="flex items-center space-x-2 text-orange-400 font-bold">
+                    <span>
+                        {getTotalWeeklyPoints(player).toFixed(1)} / 200 pts
+                    </span>
                   <span className="text-sm text-gray-400">
                     {getGroupPoints(player, 'Groupe Rouge').toFixed(1)} 🔴
                   </span>
@@ -577,7 +579,6 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
               <h3 className="text-2xl font-bold text-orange-400">{selectedPlayer.name}</h3>
               <button onClick={handleClosePlayerDetails} className="text-gray-400 hover:text-white text-3xl">&times;</button>
             </div>
-            <p className="text-gray-300 mb-4">ID: <span className="font-mono text-xs">{selectedPlayer.id}</span></p>
 
             <div className="space-y-4 mb-6">
               <ProgressBarGauge
