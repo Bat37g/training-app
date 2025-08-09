@@ -78,9 +78,19 @@ const getBackgroundColor = (points, goal) => {
   return 'bg-red-500';
 };
 
-const ProgressBarGauge = ({ points, goal, title }) => {
+const ProgressBarGauge = ({ points, goal, title, showEmojis = false }) => {
   const percentage = Math.min(100, (points / goal) * 100);
   const progressColor = getBackgroundColor(points, goal);
+
+  const getPointsEmoji = (p) => {
+    if (p >= 200) return '🎉';
+    if (p >= 150) return '💪';
+    if (p >= 100) return '👍';
+    if (p >= 50) return '🏃‍♂️';
+    return '';
+  };
+  
+  const currentEmoji = getPointsEmoji(points);
 
   return (
     <div className="w-full flex flex-col items-center p-2 bg-gray-800 rounded-lg shadow-inner">
@@ -90,24 +100,24 @@ const ProgressBarGauge = ({ points, goal, title }) => {
           className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${progressColor}`}
           style={{ width: `${percentage}%` }}
         ></div>
+        {showEmojis && (
+          <>
+            <span className="absolute left-[25%] top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs opacity-50">🏃‍♂️</span>
+            <span className="absolute left-[50%] top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs opacity-50">👍</span>
+            <span className="absolute left-[75%] top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs opacity-50">💪</span>
+            <span className="absolute left-[100%] top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs opacity-50">🎉</span>
+          </>
+        )}
       </div>
       <div className="w-full flex justify-between mt-1 text-xs font-mono">
         <span className="text-gray-400">0</span>
         <span className="font-bold text-blue-300">
-          {points.toFixed(1)} / {goal} pts
+          {points.toFixed(1)} {currentEmoji} / {goal} pts
         </span>
         <span className="text-gray-400">{goal}</span>
       </div>
     </div>
   );
-};
-
-const getEmoji = (points) => {
-  if (points >= 200) return '🎉';
-  if (points >= 150) return '💪';
-  if (points >= 100) return '👍';
-  if (points >= 50) return '🏃‍♂️';
-  return '';
 };
 
 // Nouvelle page pour la gestion des utilisateurs
@@ -478,6 +488,10 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
   }, {}) : {};
 
   const sortedDays = Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a));
+  
+  // Trouver le joueur actuellement connecté pour afficher sa jauge
+  const currentPlayer = players.find(p => p.id === user.uid);
+  const currentPlayerPoints = currentPlayer ? getTotalWeeklyPoints(currentPlayer) : 0;
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -534,9 +548,15 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
         </header>
 
         {/* Message de bienvenue */}
-        <p className="text-center mb-8 text-gray-300 text-base sm:text-xl">
+        <p className="text-center mb-4 text-gray-300 text-base sm:text-xl">
           Bonjour, <span className="font-bold text-orange-400">{playerName}</span>!
         </p>
+
+        {/* Jauge pour le joueur connecté */}
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Progression cette semaine</h2>
+            <ProgressBarGauge points={currentPlayerPoints} goal={200} title="Objectif hebdomadaire: 200 points" showEmojis={true} />
+        </div>
 
         <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
           <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de l'équipe (semaine en cours)</h2>
@@ -544,17 +564,17 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
             <table className="w-full text-left min-w-[400px]">
               <thead>
                 <tr className="bg-gray-800 text-xs sm:text-sm">
-                  <th className="p-2 sm:p-3 rounded-tl-xl">Rang</th>
-                  <th className="p-2 sm:p-3">Joueur</th>
-                  <th className="p-2 sm:p-3 rounded-tr-xl">Points Totaux</th>
+                  <th className="px-2 py-3 rounded-tl-xl">Rang</th>
+                  <th className="px-2 py-3">Joueur</th>
+                  <th className="px-2 py-3 rounded-tr-xl">Points Totaux</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedPlayers.length > 0 ? (
                   sortedPlayers.map((player, index) => (
                     <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200 text-sm">
-                      <td className="p-2 sm:p-3 text-xs sm:text-sm">{index + 1}</td>
-                      <td className="p-2 sm:p-3 flex items-center space-x-1 sm:space-x-2">
+                      <td className="px-2 py-2 text-xs sm:text-sm">{index + 1}</td>
+                      <td className="px-2 py-2 flex items-center space-x-1 sm:space-x-2">
                         {index === 0 && <span role="img" aria-label="gold trophy">🥇</span>}
                         {index === 1 && <span role="img" aria-label="silver trophy">🥈</span>}
                         {index === 2 && <span role="img" aria-label="bronze trophy">🥉</span>}
@@ -562,7 +582,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
                           {player.name}
                         </span>
                       </td>
-                      <td className="p-2 sm:p-3">
+                      <td className="px-2 py-2">
                           <span className="font-bold text-base sm:text-lg">{getTotalWeeklyPoints(player).toFixed(1)} {getEmoji(getTotalWeeklyPoints(player))}</span>
                           <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2.5 mt-1">
                             <div
@@ -583,7 +603,6 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
           </div>
         </div>
         
-        {/* La légende et les détails des groupes sont retirés de la page principale */}
         {/* Le bouton pour ajouter un entraînement reste */}
         <div className="text-center">
           <button
