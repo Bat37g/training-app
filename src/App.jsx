@@ -46,6 +46,7 @@ const EXERCISES = [
     { id: 20, name: 'Volley-ball', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
     { id: 21, name: 'Hand-ball', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Rouge', emoji: '🔴' },
     { id: 22, name: 'Abdominaux', points: 2, unit: 'série de 10', pointsPer: 1, group: 'Groupe Rouge', emoji: '🔴' },
+    { id: 23, name: 'Pompes', points: 2, unit: 'série de 10', pointsPer: 1, group: 'Groupe Rouge', emoji: '🔴' }, // Ajout de l'exercice "Pompes"
 
     // Groupe Bleu
     { id: 4, name: 'Basket', points: 10, unit: 'minutes', pointsPer: 30, group: 'Groupe Bleu', emoji: '🔵' },
@@ -147,7 +148,7 @@ function App() {
   const [deleting, setDeleting] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [totalCumulativePoints, setTotalCumulativePoints] = useState(0);
-
+  
   // État pour la page de gestion des utilisateurs
   const [playerToDelete, setPlayerToDelete] = useState(null);
   const [showDeleteConfirmationAdmin, setShowDeleteConfirmationAdmin] = useState(false);
@@ -523,6 +524,7 @@ function App() {
       return historicalScores.filter(weekData => weekData.players.some(p => p.points > 0));
   };
 
+
   if (loading) {
       return (
           <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
@@ -816,6 +818,7 @@ if (isLoggedIn && currentPage === 'HistoryPage') {
         </div>
     );
 }
+
 
   // Rendu de l'application principale
   return (
