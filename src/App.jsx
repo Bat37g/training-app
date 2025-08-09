@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithCustomToken, signInAnonymously } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { format, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -160,6 +160,7 @@ function App() {
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // État pour afficher/masquer le mot de passe
+  const [newPlayerName, setNewPlayerName] = useState('');
 
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -170,8 +171,6 @@ function App() {
         try {
             if (initialAuthToken) {
                 await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-                await signInAnonymously(auth);
             }
         } catch (error) {
             console.error("Erreur de connexion Firebase :", error);
@@ -239,6 +238,11 @@ function App() {
   const handleAddTraining = async () => {
     if (!playerName || !quantity) {
         setMessage("Veuillez remplir la quantité.");
+        return;
+    }
+
+    if (!user) {
+        setMessage("Vous devez être connecté pour ajouter un entraînement.");
         return;
     }
 
@@ -412,10 +416,15 @@ function App() {
             userCredential = await signInWithEmailAndPassword(auth, email, password);
             console.log("Connexion réussie");
         } else {
+            if (!newPlayerName.trim()) {
+                setAuthError("Veuillez entrer un nom de joueur.");
+                setAuthLoading(false);
+                return;
+            }
             userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, userCredential.user.uid);
             await setDoc(playerDocRef, {
-                name: email.split('@')[0],
+                name: newPlayerName,
                 email: email,
                 dailyPoints: {},
                 weeklyPoints: {},
@@ -426,7 +435,7 @@ function App() {
         }
         setIsLoggedIn(true);
         setUser(userCredential.user);
-        setPlayerName(email.split('@')[0]);
+        setPlayerName(isLogin ? (await getDoc(doc(db, `artifacts/${appId}/public/data/team_challenge`, userCredential.user.uid))).data().name : newPlayerName);
     } catch (err) {
         console.error("Erreur d'authentification:", err);
         setAuthError("Erreur d'authentification. Veuillez vérifier vos identifiants ou réessayer.");
@@ -479,6 +488,18 @@ function App() {
                             className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
                         />
                     </div>
+                    { !isLogin && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300">Nom de joueur</label>
+                            <input
+                                type="text"
+                                value={newPlayerName}
+                                onChange={(e) => setNewPlayerName(e.target.value)}
+                                required
+                                className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                            />
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-medium text-gray-300">Mot de passe</label>
                         <div className="relative mt-1">
