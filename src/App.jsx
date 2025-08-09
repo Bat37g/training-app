@@ -117,7 +117,7 @@ const ProgressBarGauge = ({ points, goal, title, showEmojis = false }) => {
             <div className="w-full flex justify-between mt-1 text-xs font-mono">
                 <span className="text-gray-400">0</span>
                 <span className="font-bold text-blue-300">
-                    {points.toFixed(1)} {currentEmoji} / {goal} pts
+                    {points.toFixed(1)} {currentEmoji}
                 </span>
                 <span className="text-gray-400">{goal}</span>
             </div>
@@ -456,7 +456,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
             <div className="max-w-4xl mx-auto">
                 <header className="flex justify-between items-center mb-6">
                     <div className="flex items-center space-x-2">
-                        <h1 className="text-3xl sm:text-4xl font-bold text-orange-400">Team Challenge</h1>
+                        <h1 className="text-3xl sm:text-4xl font-bold text-orange-400">TNT Summer 2025</h1>
                         <span className="text-2xl">🔥</span>
                     </div>
                     <div className="relative">
@@ -542,7 +542,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
                 </div>
 
                 <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
-                    <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de la semaine /200pts</h2>
+                    <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de la semaine</h2>
                     <div className="space-y-4">
                         {sortedPlayers.length > 0 ? sortedPlayers.map((player, index) => (
                             <div
@@ -561,7 +561,7 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
                                 </div>
                                 <div className="flex items-center space-x-2 text-orange-400 font-bold">
                                     <span>
-                                        {getTotalWeeklyPoints(player).toFixed(1)} / 200 pts
+                                        {getTotalWeeklyPoints(player).toFixed(1)} pts
                                     </span>
                                 </div>
                             </div>
@@ -597,6 +597,11 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
                                     points={getGroupPoints(selectedPlayer, 'Groupe Bleu')}
                                     goal={100}
                                     title="Groupe Bleu 🔵"
+                                />
+                                <ProgressBarGauge
+                                    points={getGroupPoints(selectedPlayer, 'Groupe Vert')}
+                                    goal={100}
+                                    title="Groupe Vert 🟢"
                                 />
                             </div>
                         </div>
