@@ -5,20 +5,10 @@ import { getFirestore, doc, setDoc, onSnapshot, collection, updateDoc, getDoc, d
 import { format, startOfWeek, endOfWeek, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-// Configuration Firebase
-// J'ai réintégré la configuration pour assurer que l'application fonctionne
-// correctement et contourner les erreurs d'API Key.
-const firebaseConfig = {
-  apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
-  authDomain: "tnt-training.firebaseapp.com",
-  projectId: "tnt-training",
-  storageBucket: "tnt-training.firebasestorage.app",
-  messagingSenderId: "791420900421",
-  appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
-  measurementId: "G-B74Q9T0KMB"
-};
+// La configuration Firebase est désormais gérée par l'environnement global,
+// donc pas besoin de la déclarer ici.
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
 let app;
 let db;
@@ -456,6 +446,11 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
             <div className="max-w-4xl mx-auto">
                 <header className="flex justify-between items-center mb-6">
                     <div className="flex items-center space-x-2">
+                         <img 
+                            src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_79,h_79,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png" 
+                            alt="Logo" 
+                            className="w-10 h-10 sm:w-12 sm:h-12"
+                        />
                         <h1 className="text-3xl sm:text-4xl font-bold text-orange-400">TNT Summer 2025</h1>
                         <span className="text-2xl">🔥</span>
                     </div>
@@ -570,6 +565,21 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
                         )}
                     </div>
                 </div>
+
+                {/* Nouvelle section pour les liens */}
+                <div className="mt-8 text-center text-sm text-gray-400 space-y-2">
+                    <p>
+                        <a href="https://youtu.be/zqjuMftQsmE?si=Q5QzJOqJaMY7A_lg" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                            Regarder la vidéo explicative
+                        </a>
+                    </p>
+                    <p>
+                        <a href="https://drive.google.com/file/d/1Jecrx07HKmLjtAmxVasS8sPYQtIDejS0/view?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                            Voir le tableau des points
+                        </a>
+                    </p>
+                </div>
+
             </div>
 
             {showPlayerDetailsModal && selectedPlayer && (
