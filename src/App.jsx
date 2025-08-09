@@ -266,7 +266,7 @@ const UserManagementPage = ({ user, setCurrentPage }) => {
 };
 
 
-const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
+const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) => {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -375,41 +375,28 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
     if (!selectedPlayer || !activityToDelete) return;
     setDeleting(true);
     setMessage('');
-
     try {
       const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, selectedPlayer.id);
       const data = selectedPlayer;
       const activity = activityToDelete;
-
       const pointsToSubtract = activity.points;
       const groupName = activity.group;
       const date = activity.date;
       const currentWeek = getWeekNumber(new Date(date));
-
       const updatedWeeklyPoints = { ...data.weeklyPoints, [currentWeek]: (data.weeklyPoints?.[currentWeek] || 0) - pointsToSubtract };
-
       const updatedGroupPoints = { ...data.groupPoints };
       if (updatedGroupPoints?.[currentWeek]?.[groupName]) {
         updatedGroupPoints[currentWeek][groupName] -= pointsToSubtract;
       }
-
       const updatedDailyPoints = { ...data.dailyPoints };
       if (updatedDailyPoints?.[date]) {
-          updatedDailyPoints[date] -= pointsToSubtract;
-          if (updatedDailyPoints[date] <= 0) {
-              delete updatedDailyPoints[date];
-          }
+        updatedDailyPoints[date] -= pointsToSubtract;
+        if (updatedDailyPoints[date] <= 0) {
+          delete updatedDailyPoints[date];
+        }
       }
-
       const updatedActivities = (data.allActivities || []).filter(a => a.timestamp !== activity.timestamp);
-
-      await updateDoc(playerDocRef, {
-        dailyPoints: updatedDailyPoints,
-        weeklyPoints: updatedWeeklyPoints,
-        groupPoints: updatedGroupPoints,
-        allActivities: updatedActivities
-      });
-
+      await updateDoc(playerDocRef, { dailyPoints: updatedDailyPoints, weeklyPoints: updatedWeeklyPoints, groupPoints: updatedGroupPoints, allActivities: updatedActivities });
       setMessage(`Activité supprimée avec succès pour ${selectedPlayer.name}.`);
       setShowDeleteConfirmation(false);
       setActivityToDelete(null);
@@ -455,405 +442,269 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage }) => {
   };
 
   const handleCloseDeleteConfirmation = () => {
-      setActivityToDelete(null);
-      setShowDeleteConfirmation(false);
-  };
-
-  if (loading && !errorMessage) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
-        <div className="text-xl">Chargement...</div>
-      </div>
-    );
-  }
-
-  if (errorMessage) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white p-4 text-center">
-        <div className="bg-gray-900 rounded-lg p-8">
-          <p className="text-xl text-red-400 font-bold mb-4">Erreur</p>
-          <p className="text-gray-300">{errorMessage}</p>
-        </div>
-      </div>
-    );
-  }
-
-  const activitiesByDay = selectedPlayer ? selectedPlayer.allActivities.reduce((acc, activity) => {
-    const { date, ...rest } = activity;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(rest);
-    return acc;
-  }, {}) : {};
-
-  const sortedDays = Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a));
-  
-  // Trouver le joueur actuellement connecté pour afficher sa jauge
-  const currentPlayer = players.find(p => p.id === user.uid);
-  const currentPlayerPoints = currentPlayer ? getTotalWeeklyPoints(currentPlayer) : 0;
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+    setShowDeleteConfirmation(false);
+    setActivityToDelete(null);
   };
 
   return (
     <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
       <div className="max-w-4xl mx-auto">
-        <header className="flex justify-between items-center mb-2 relative">
-            <h1 className="text-3xl sm:text-4xl font-bold text-orange-400 flex items-center">
-                <img
-                    src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_77,h_77,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png"
-                    alt="Logo du club"
-                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-full mr-2 sm:mr-4"
-                />
-                Classement
-            </h1>
-            
-            {/* Menu burger */}
-            <div className="relative">
-                <button
-                    onClick={toggleMenu}
-                    className="px-3 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-                    </svg>
-                </button>
-                {isMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-10">
-                        <div className="py-1">
-                            <span className="block px-4 py-2 text-sm text-gray-300 border-b border-gray-700">
-                                {playerName}
-                            </span>
-                            {/* Option de menu conditionnelle pour l'administrateur */}
-                            {user.email === ADMIN_EMAIL && (
-                                <button
-                                    onClick={() => { setCurrentPage('UserManagement'); toggleMenu(); }}
-                                    className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
-                                >
-                                    Gestion des utilisateurs
-                                </button>
-                            )}
-                            <button
-                                onClick={() => { handleLogout(); toggleMenu(); }}
-                                className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
-                            >
-                                Déconnexion
-                            </button>
-                        </div>
-                    </div>
+        <header className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-400">Team Challenge</h1>
+            <span className="text-2xl">🔥</span>
+          </div>
+          <div className="relative">
+            <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300 text-sm sm:text-base"
+            >
+              Menu
+            </button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl z-10">
+                {isAdmin && (
+                  <button
+                      onClick={() => {
+                        setCurrentPage('UserManagement');
+                        setIsMenuOpen(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-t-lg"
+                  >
+                    Gérer les utilisateurs
+                  </button>
                 )}
-            </div>
+                <button
+                    onClick={() => {
+                      handleLogout();
+                      setIsMenuOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 rounded-b-lg"
+                >
+                  Déconnexion
+                </button>
+              </div>
+            )}
+          </div>
         </header>
 
-        {/* Message de bienvenue */}
-        <p className="text-center mb-4 text-gray-300 text-base sm:text-xl">
-          Bonjour, <span className="font-bold text-orange-400">{playerName}</span>!
-        </p>
+        <p className="text-gray-400 text-center mb-6">Bienvenue, <span className="font-bold text-orange-400">{playerName}</span> !</p>
 
-        {/* Jauge pour le joueur connecté */}
-        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
-            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Progression cette semaine</h2>
-            <ProgressBarGauge points={currentPlayerPoints} goal={200} title="Objectif hebdomadaire: 200 points" showEmojis={true} />
-        </div>
-
-        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
-          <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de l'équipe (semaine en cours)</h2>
-          <div className="w-full">
-            <table className="w-full text-left min-w-[400px]">
-              <thead>
-                <tr className="bg-gray-800 text-xs sm:text-sm">
-                  <th className="px-2 py-3 rounded-tl-xl">Rang</th>
-                  <th className="px-2 py-3">Joueur</th>
-                  <th className="px-2 py-3 rounded-tr-xl">Points Totaux</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedPlayers.length > 0 ? (
-                  sortedPlayers.map((player, index) => (
-                    <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200 text-sm">
-                      <td className="px-2 py-2 text-xs sm:text-sm">{index + 1}</td>
-                      <td className="px-2 py-2 flex items-center space-x-1 sm:space-x-2">
-                        {index === 0 && <span role="img" aria-label="gold trophy">🥇</span>}
-                        {index === 1 && <span role="img" aria-label="silver trophy">🥈</span>}
-                        {index === 2 && <span role="img" aria-label="bronze trophy">🥉</span>}
-                        <span onClick={() => handleOpenPlayerDetails(player)} className="font-bold cursor-pointer hover:underline text-blue-300 text-sm">
-                          {player.name}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2">
-                          <span className="font-bold text-base sm:text-lg">{getTotalWeeklyPoints(player).toFixed(1)} {getEmoji(getTotalWeeklyPoints(player))}</span>
-                          <div className="w-full bg-gray-700 rounded-full h-1.5 sm:h-2.5 mt-1">
-                            <div
-                              className={`h-1.5 sm:h-2.5 rounded-full transition-all duration-500 ${getBackgroundColor(getTotalWeeklyPoints(player), 200)}`}
-                              style={{ width: `${Math.min(100, (getTotalWeeklyPoints(player) / 200) * 100)}%` }}
-                            ></div>
-                          </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="p-3 text-center text-gray-500">Aucun joueur pour le moment. Soyez le premier à vous entraîner !</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        {errorMessage && (
+          <div className="bg-red-800 text-white p-3 rounded-lg mb-4 text-center">
+            {errorMessage}
           </div>
-        </div>
-        
-        {/* Le bouton pour ajouter un entraînement reste */}
-        <div className="text-center">
-          <button
-            onClick={handleOpenModal}
-            className="px-6 py-3 bg-orange-500 text-white font-bold rounded-full shadow-lg hover:bg-orange-600 transition-colors duration-300 transform hover:scale-105 text-sm sm:text-base"
-          >
-            Ajouter un entraînement
-          </button>
+        )}
+
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+          <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="exercise" className="block text-sm font-medium text-gray-300">Exercice</label>
+              <select
+                  id="exercise"
+                  value={selectedExercise.id}
+                  onChange={(e) => setSelectedExercise(EXERCISES.find(ex => ex.id === parseInt(e.target.value)))}
+                  className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
+              >
+                {EXERCISES.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.emoji} {ex.name} ({ex.points} pts / {ex.pointsPer} {ex.unit})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="quantity" className="block text-sm font-medium text-gray-300">Quantité ({selectedExercise.unit})</label>
+              <input
+                  type="number"
+                  id="quantity"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                  placeholder="Ex: 30"
+              />
+            </div>
+            <button
+                onClick={handleAddTraining}
+                disabled={loading}
+                className="w-full py-2 px-4 bg-orange-600 text-white font-bold rounded-full shadow-lg hover:bg-orange-700 transition-colors duration-300 disabled:opacity-50"
+            >
+              {loading ? 'Ajout...' : 'Ajouter'}
+            </button>
+          </div>
+          {message && <p className="mt-4 text-center text-sm text-green-400">{message}</p>}
         </div>
 
-        {showModal && (
-          <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h3>
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="player-name-input" className="block text-gray-300 text-sm">Votre nom :</label>
-                  <input
-                    id="player-name-input"
-                    type="text"
-                    value={playerName}
-                    disabled={true} // Le nom est maintenant lié à l'inscription et ne peut pas être modifié ici
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 disabled:opacity-50 text-sm"
-                    placeholder="Entrez votre nom"
-                  />
+        <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+          <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de la semaine</h2>
+          <div className="space-y-4">
+            {sortedPlayers.length > 0 ? sortedPlayers.map((player, index) => (
+              <div
+                key={player.id}
+                className="flex items-center justify-between bg-gray-800 p-3 rounded-xl shadow-md cursor-pointer hover:bg-gray-700 transition-colors duration-200"
+                onClick={() => handleOpenPlayerDetails(player)}
+              >
+                <div className="flex items-center space-x-3">
+                  <span className="text-lg font-bold text-orange-400 w-6 text-center">{index + 1}.</span>
+                  <span className="font-semibold text-white">{player.name}</span>
                 </div>
-                <div>
-                  <label htmlFor="exercise-select" className="block text-gray-300 text-sm">Activité :</label>
-                  <select
-                    id="exercise-select"
-                    value={selectedExercise.name}
-                    onChange={(e) => setSelectedExercise(EXERCISES.find(ex => ex.name === e.target.value))}
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 text-sm"
-                  >
-                    {EXERCISES.map((ex) => (
-                      <option key={ex.id} value={ex.name}>{ex.emoji} {ex.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="quantity-input" className="block text-gray-300 text-sm">
-                    Quantité ({selectedExercise.unit}) :
-                  </label>
-                  <input
-                    id="quantity-input"
-                    type="number"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full p-2 mt-1 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-orange-500 text-sm"
-                  />
-                </div>
-                <div className="text-center text-gray-400 text-xs sm:text-sm">
-                  Points estimés : <span className="font-bold text-orange-400">
-                    {quantity ? ((parseFloat(quantity) / selectedExercise.pointsPer) * selectedExercise.points).toFixed(1) : '0'}
+                <div className="flex items-center space-x-2">
+                  <span className="text-orange-400 font-bold">{getTotalWeeklyPoints(player).toFixed(1)} pts</span>
+                  <span className="text-sm text-gray-400">
+                    {getGroupPoints(player, 'Groupe Rouge').toFixed(1)} 🔴
+                  </span>
+                  <span className="text-sm text-gray-400">
+                    {getGroupPoints(player, 'Groupe Bleu').toFixed(1)} 🔵
+                  </span>
+                  <span className="text-sm text-gray-400">
+                    {getGroupPoints(player, 'Groupe Vert').toFixed(1)} 🟢
                   </span>
                 </div>
-                {message && <p className="text-xs text-center text-red-400">{message}</p>}
-                <div className="flex justify-end space-x-4 mt-6">
-                  <button
-                    onClick={() => setShowModal(false)}
-                    className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors duration-200 text-sm"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={handleAddTraining}
-                    disabled={loading}
-                    className="px-4 py-2 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-200 disabled:opacity-50 text-sm"
-                  >
-                    {loading ? 'Envoi...' : 'Enregistrer'}
-                  </button>
-                </div>
               </div>
-            </div>
+            )) : (
+              <p className="text-center text-gray-500">Aucun joueur trouvé. Commencez par ajouter un entraînement.</p>
+            )}
           </div>
-        )}
+        </div>
+      </div>
 
-        {/* Modal de synthèse du joueur */}
-        {showPlayerDetailsModal && selectedPlayer && (
-          <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-2xl border border-orange-500 shadow-xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Synthèse des entraînements de {selectedPlayer.name}</h3>
-              <div className="mb-6">
-                <ProgressBarGauge
+      {/* Modal de détails du joueur */}
+      {showPlayerDetailsModal && selectedPlayer && (
+        <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 p-6 rounded-2xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-bold text-orange-400">{selectedPlayer.name}</h3>
+              <button onClick={handleClosePlayerDetails} className="text-gray-400 hover:text-white text-3xl">&times;</button>
+            </div>
+            <p className="text-gray-300 mb-4">ID: <span className="font-mono text-xs">{selectedPlayer.id}</span></p>
+
+            <div className="space-y-4 mb-6">
+              <ProgressBarGauge
                   points={getTotalWeeklyPoints(selectedPlayer)}
                   goal={200}
-                  title={`Objectif hebdomadaire: 200 points`}
+                  title="Points de la semaine"
+                  showEmojis={true}
+              />
+              <div className="flex justify-between space-x-2">
+                <ProgressBarGauge
+                    points={getGroupPoints(selectedPlayer, 'Groupe Rouge')}
+                    goal={100}
+                    title="Groupe Rouge 🔴"
+                />
+                <ProgressBarGauge
+                    points={getGroupPoints(selectedPlayer, 'Groupe Bleu')}
+                    goal={100}
+                    title="Groupe Bleu 🔵"
+                />
+                <ProgressBarGauge
+                    points={getGroupPoints(selectedPlayer, 'Groupe Vert')}
+                    goal={100}
+                    title="Groupe Vert 🟢"
                 />
               </div>
+            </div>
 
-              {/* Ajout des jauges pour les groupes dans la modale */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <ProgressBarGauge
-                      points={getGroupPoints(selectedPlayer, 'Groupe Rouge')}
-                      goal={50}
-                      title={`Groupe Rouge: ${getGroupPoints(selectedPlayer, 'Groupe Rouge').toFixed(1)} / 50 pts`}
-                  />
-                  <ProgressBarGauge
-                      points={getGroupPoints(selectedPlayer, 'Groupe Bleu')}
-                      goal={50}
-                      title={`Groupe Bleu: ${getGroupPoints(selectedPlayer, 'Groupe Bleu').toFixed(1)} / 50 pts`}
-                  />
-                  <ProgressBarGauge
-                      points={getGroupPoints(selectedPlayer, 'Groupe Vert')}
-                      goal={50}
-                      title={`Groupe Vert: ${getGroupPoints(selectedPlayer, 'Groupe Vert').toFixed(1)} / 50 pts`}
-                  />
-              </div>
-
-              {Object.keys(activitiesByDay).length > 0 ? (
-                Object.keys(activitiesByDay).sort((a,b) => new Date(b) - new Date(a)).map(day => (
-                  <div key={day} className="mb-6 p-4 bg-gray-800 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-base sm:text-xl font-bold text-blue-300">Journée du {day}</h4>
+            <h4 className="text-xl font-semibold mb-3 text-white">Activités récentes</h4>
+            {selectedPlayer.allActivities && selectedPlayer.allActivities.length > 0 ? (
+              <ul className="space-y-2">
+                {selectedPlayer.allActivities.sort((a, b) => b.timestamp - a.timestamp).map((activity, index) => (
+                  <li key={index} className="bg-gray-900 p-3 rounded-lg flex justify-between items-center">
+                    <div>
+                      <span className="font-semibold text-orange-400">{activity.emoji} {activity.exercise}</span>
+                      <p className="text-sm text-gray-400">{activity.quantity} {EXERCISES.find(ex => ex.name === activity.exercise)?.unit} - {activity.points.toFixed(1)} pts</p>
+                      <p className="text-xs text-gray-500">{activity.date}</p>
                     </div>
-                    <ul className="space-y-2 text-sm">
-                      {activitiesByDay[day].map((activity) => (
-                        <li key={activity.timestamp} className="bg-gray-700 p-3 rounded-md flex justify-between items-center flex-wrap">
-                          <span className="flex-grow">
-                            <span className="font-semibold">{activity.emoji} {activity.exercise}</span> : {activity.quantity} {activity.unit}
-                          </span>
-                          <span className="flex items-center space-x-2 mt-2 sm:mt-0">
-                            <span className="font-bold text-blue-300">{activity.points.toFixed(1)} points</span>
-                            {/* Seul l'administrateur peut supprimer une activité */}
-                            {user.email === ADMIN_EMAIL && (
-                                <button
-                                    onClick={() => handleOpenDeleteConfirmation(activity)}
-                                    className="text-white bg-red-500 hover:bg-red-600 p-1 rounded-full transition-colors duration-200"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 112 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                                    </svg>
-                                </button>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-400">Aucun entraînement enregistré pour ce joueur.</p>
-              )}
-              <div className="text-right mt-6">
-                <button
-                  onClick={handleClosePlayerDetails}
-                  className="px-4 py-2 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-300 text-sm sm:text-base"
-                >
-                  Fermer
-                </button>
-              </div>
+                    {user && user.uid === selectedPlayer.id && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDeleteConfirmation(activity);
+                            }}
+                            className="text-red-500 hover:text-red-400 transition-colors"
+                        >
+                          &times;
+                        </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-500 text-center">Aucune activité enregistrée.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression d'activité */}
+      {showDeleteConfirmation && activityToDelete && (
+        <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
+            <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression de l'activité</h3>
+            <p className="text-gray-300 mb-6">
+              Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du {activityToDelete.date} ?
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={handleCloseDeleteConfirmation}
+                disabled={deleting}
+                className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDeleteActivity}
+                disabled={deleting}
+                className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Suppression...' : 'Supprimer'}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Modal de confirmation de suppression */}
-        {showDeleteConfirmation && (
-            <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
-                <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-red-500 shadow-xl">
-                    <h3 className="text-xl font-semibold mb-4 text-red-400">Confirmer la suppression</h3>
-                    <p className="text-gray-300 mb-4 text-sm">
-                        Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold">{activityToDelete.exercise}</span> du <span className="font-bold">{activityToDelete.date}</span> pour <span className="font-bold">{selectedPlayer.name}</span> ? Cette action est irréversible.
-                    </p>
-                    {message && <p className="text-xs text-center text-red-400 mb-4">{message}</p>}
-                    <div className="flex justify-end space-x-4">
-                        <button
-                            onClick={handleCloseDeleteConfirmation}
-                            disabled={deleting}
-                            className="px-4 py-2 bg-gray-700 text-white rounded-full hover:bg-gray-600 transition-colors disabled:opacity-50 text-sm"
-                        >
-                            Annuler
-                        </button>
-                        <button
-                            onClick={handleDeleteActivity}
-                            disabled={deleting}
-                            className="px-4 py-2 bg-red-500 text-white font-bold rounded-full hover:bg-red-600 transition-colors disabled:opacity-50 text-sm"
-                        >
-                            {deleting ? 'Suppression...' : 'Supprimer'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
-      </div>
     </div>
   );
 };
 
+// Page d'authentification
 const AuthPage = ({ setIsLoggedIn, setUserId, setPlayerName }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [playerNameInput, setPlayerNameInput] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [isLogin, setIsLogin] = useState(true);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleAuth = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
     setLoading(true);
-    setErrorMessage('');
+
     try {
-      if (isRegistering) {
-        // Inscription
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
-        const newPlayer = {
-            name: playerNameInput,
-            email: user.email,
+      let userCredential;
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log("Connexion réussie");
+      } else {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, userCredential.user.uid);
+        await setDoc(playerDocRef, {
+            name: email.split('@')[0],
+            email: email,
             dailyPoints: {},
             weeklyPoints: {},
             groupPoints: {},
             allActivities: [],
-            lastLogin: new Date().toISOString()
-        };
-        await setDoc(playerDocRef, newPlayer);
-
-        setUserId(user.uid);
-        setPlayerName(playerNameInput);
-        setIsLoggedIn(true);
-      } else {
-        // Connexion
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        // Récupérer le nom du joueur depuis la base de données après la connexion
-        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
-        const playerDoc = await getDoc(playerDocRef);
-        if (playerDoc.exists()) {
-            setPlayerName(playerDoc.data().name);
-        } else {
-            console.warn("Nom du joueur non trouvé pour l'utilisateur connecté.");
-            setPlayerName("Inconnu");
-        }
-        
-        setUserId(user.uid);
-        setIsLoggedIn(true);
+        });
+        console.log("Compte créé avec succès");
       }
-    } catch (error) {
-      console.error("Erreur d'authentification:", error);
-      let message = "Erreur d'authentification. Veuillez réessayer.";
-      if (error.code === 'auth/email-already-in-use') {
-        message = "Cette adresse e-mail est déjà utilisée.";
-      } else if (error.code === 'auth/invalid-email') {
-        message = "L'adresse e-mail n'est pas valide.";
-      } else if (error.code === 'auth/weak-password') {
-        message = "Le mot de passe doit contenir au moins 6 caractères.";
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        message = "Identifiants incorrects.";
-      }
-      setErrorMessage(message);
+      setIsLoggedIn(true);
+      setUserId(userCredential.user.uid);
+      setPlayerName(email.split('@')[0]);
+    } catch (err) {
+      console.error("Erreur d'authentification:", err);
+      setError("Erreur d'authentification. Veuillez vérifier vos identifiants ou réessayer.");
     } finally {
       setLoading(false);
     }
@@ -861,55 +712,46 @@ const AuthPage = ({ setIsLoggedIn, setUserId, setPlayerName }) => {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
-      <div className="bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-sm border border-orange-500">
-        <h1 className="text-2xl font-bold text-center mb-6 text-orange-400">
-          {isRegistering ? 'Inscription' : 'Connexion'}
-        </h1>
-        <div className="space-y-4">
-          {isRegistering && (
-            <div>
-              <input
-                type="text"
-                value={playerNameInput}
-                onChange={(e) => setPlayerNameInput(e.target.value)}
-                className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                placeholder="Votre nom de joueur"
-              />
-            </div>
-          )}
+      <div className="w-full max-w-md bg-gray-900 rounded-2xl shadow-xl p-8 border border-orange-500">
+        <h2 className="text-3xl font-bold text-center text-orange-400 mb-6">
+          {isLogin ? 'Connexion' : 'Créer un compte'}
+        </h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-gray-300">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="Adresse e-mail"
+              required
+              className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-300">Mot de passe</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="Mot de passe"
+              required
+              className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
             />
           </div>
-          {errorMessage && <p className="text-sm text-center text-red-400">{errorMessage}</p>}
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
           <button
-            onClick={handleAuth}
+            type="submit"
             disabled={loading}
-            className="w-full px-4 py-3 bg-orange-500 text-white font-bold rounded-full hover:bg-orange-600 transition-colors duration-300 disabled:opacity-50"
+            className="w-full py-2 px-4 bg-orange-600 text-white font-bold rounded-full shadow-lg hover:bg-orange-700 transition-colors duration-300 disabled:opacity-50"
           >
-            {loading ? 'Chargement...' : (isRegistering ? 'S\'inscrire' : 'Se connecter')}
+            {loading ? (isLogin ? 'Connexion...' : 'Création...') : (isLogin ? 'Se connecter' : 'Créer le compte')}
           </button>
-        </div>
-        <div className="mt-4 text-center">
+        </form>
+        <div className="mt-6 text-center">
           <button
-            onClick={() => setIsRegistering(!isRegistering)}
-            className="text-orange-400 text-sm hover:underline"
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-sm text-orange-400 hover:underline"
           >
-            {isRegistering ? 'Vous avez déjà un compte ? Connectez-vous.' : 'Vous n\'avez pas de compte ? Inscrivez-vous.'}
+            {isLogin ? "Pas de compte ? Créer un compte" : "Déjà un compte ? Se connecter"}
           </button>
         </div>
       </div>
@@ -918,24 +760,24 @@ const AuthPage = ({ setIsLoggedIn, setUserId, setPlayerName }) => {
 };
 
 
-const App = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [playerName, setPlayerName] = useState("");
-  const [currentPage, setCurrentPage] = useState('MainApp');
+  const [currentPage, setCurrentPage] = useState('MainApp'); // Ajout d'un état pour la gestion des pages
+  const isAdmin = user && user.email === ADMIN_EMAIL;
+
 
   useEffect(() => {
-    if (!auth) {
-      console.error("Auth n'est pas initialisé.");
-      return;
-    }
+    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      setLoading(true);
       if (authUser) {
         setUser(authUser);
         setIsLoggedIn(true);
 
-        // Récupérer le nom du joueur lors de la connexion
+        // Récupérer le nom du joueur depuis la base de données après la connexion
         const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, authUser.uid);
         const playerDoc = await getDoc(playerDocRef);
         if (playerDoc.exists()) {
@@ -977,13 +819,11 @@ const App = () => {
       return <AuthPage setIsLoggedIn={setIsLoggedIn} setUserId={(uid) => { setUser({ uid }); }} setPlayerName={setPlayerName} />;
   }
 
-  if (currentPage === 'UserManagement') {
+  if (isAdmin && currentPage === 'UserManagement') {
       return <UserManagementPage user={user} setCurrentPage={setCurrentPage} />;
   }
 
   return (
-    <MainApp user={user} handleLogout={handleLogout} playerName={playerName} setCurrentPage={setCurrentPage} />
+    <MainApp user={user} handleLogout={handleLogout} playerName={playerName} setCurrentPage={setCurrentPage} isAdmin={isAdmin} />
   );
-};
-
-export default App;
+}
