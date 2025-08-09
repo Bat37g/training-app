@@ -160,9 +160,6 @@ function App() {
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // État pour afficher/masquer le mot de passe
-  
-  // Nouveau state pour le nom du joueur lors de l'inscription
-  const [registerPlayerName, setRegisterPlayerName] = useState('');
 
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -339,66 +336,68 @@ function App() {
   };
 
   const getTotalWeeklyPoints = (player) => {
-    const currentWeek = getWeekNumber(new Date());
-    return player.weeklyPoints ? (player.weeklyPoints[currentWeek] || 0) : 0;
+      const currentWeek = getWeekNumber(new Date());
+      return player.weeklyPoints ? (player.weeklyPoints[currentWeek] || 0) : 0;
   };
 
   const getGroupPoints = (player, groupName) => {
-    const currentWeek = getWeekNumber(new Date());
-    return player.groupPoints?.[currentWeek]?.[groupName] || 0;
+      const currentWeek = getWeekNumber(new Date());
+      return player.groupPoints?.[currentWeek]?.[groupName] || 0;
   };
 
   const sortedPlayers = players
-    .filter(player => player.email !== ADMIN_EMAIL)
-    .sort((a, b) => getTotalWeeklyPoints(b) - getTotalWeeklyPoints(a));
+      .filter(player => player.email !== ADMIN_EMAIL)
+      .sort((a, b) => getTotalWeeklyPoints(b) - getTotalWeeklyPoints(a));
 
   const handleOpenPlayerDetails = (player) => {
-    setSelectedPlayer(player);
-    setShowPlayerDetailsModal(true);
+      setSelectedPlayer(player);
+      setShowPlayerDetailsModal(true);
   };
 
   const handleClosePlayerDetails = () => {
-    setShowPlayerDetailsModal(false);
-    setSelectedPlayer(null);
+      setShowPlayerDetailsModal(false);
+      setSelectedPlayer(null);
   };
 
   const handleOpenDeleteConfirmation = (activity) => {
-    setActivityToDelete(activity);
-    setShowDeleteConfirmation(true);
+      setActivityToDelete(activity);
+      setShowDeleteConfirmation(true);
   };
 
   const handleCloseDeleteConfirmation = () => {
-    setShowDeleteConfirmation(false);
-    setActivityToDelete(null);
+      setShowDeleteConfirmation(false);
+      setActivityToDelete(null);
   };
+
 
   // Fonctions de la page de gestion des utilisateurs
   const handleOpenDeletePlayerConfirmation = (player) => {
-    setPlayerToDelete(player);
-    setShowDeleteConfirmationAdmin(true);
+      setPlayerToDelete(player);
+      setShowDeleteConfirmationAdmin(true);
   };
 
   const handleCloseDeletePlayerConfirmation = () => {
-    setPlayerToDelete(null);
-    setShowDeleteConfirmationAdmin(false);
-    setAdminMessage('');
+      setPlayerToDelete(null);
+      setShowDeleteConfirmationAdmin(false);
+      setAdminMessage('');
   };
 
   const handleDeletePlayer = async () => {
-    if (!playerToDelete) return;
-    setDeletingPlayer(true);
-    setAdminMessage('');
-    try {
-        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerToDelete.id);
-        await deleteDoc(playerDocRef);
-        setAdminMessage(`Le joueur ${playerToDelete.name} a été supprimé.`);
-        handleCloseDeletePlayerConfirmation();
-    } catch (e) {
-        console.error("Erreur lors de la suppression du joueur:", e);
-        setAdminMessage("Erreur lors de la suppression du joueur. Veuillez réessayer.");
-    } finally {
-        setDeletingPlayer(false);
-    }
+      if (!playerToDelete) return;
+      setDeletingPlayer(true);
+      setAdminMessage('');
+
+      try {
+          const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, playerToDelete.id);
+          await deleteDoc(playerDocRef);
+          setAdminMessage(`Le joueur ${playerToDelete.name} a été supprimé.`);
+          handleCloseDeletePlayerConfirmation();
+      } catch (e) {
+          console.error("Erreur lors de la suppression du joueur:", e);
+          setAdminMessage("Erreur lors de la suppression du joueur. Veuillez réessayer.");
+      } finally {
+          setDeletingPlayer(false);
+      }
   };
 
   // Fonctions de la page d'authentification
@@ -406,6 +405,7 @@ function App() {
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
+
     try {
         let userCredential;
         if (isLogin) {
@@ -413,446 +413,421 @@ function App() {
             console.log("Connexion réussie");
         } else {
             userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            console.log("Inscription réussie");
-
-            // Enregistrer le nom du joueur dans Firestore
             const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, userCredential.user.uid);
             await setDoc(playerDocRef, {
-                name: registerPlayerName,
-                email: email
+                name: email.split('@')[0],
+                email: email,
+                dailyPoints: {},
+                weeklyPoints: {},
+                groupPoints: {},
+                allActivities: [],
             });
-
-            setPlayerName(registerPlayerName);
+            console.log("Compte créé avec succès");
         }
-        setUser(userCredential.user);
         setIsLoggedIn(true);
-    } catch (e) {
-        console.error("Erreur d'authentification:", e);
-        setAuthError(e.message);
+        setUser(userCredential.user);
+        setPlayerName(email.split('@')[0]);
+    } catch (err) {
+        console.error("Erreur d'authentification:", err);
+        setAuthError("Erreur d'authentification. Veuillez vérifier vos identifiants ou réessayer.");
     } finally {
         setAuthLoading(false);
     }
   };
-  
-  const AuthPage = () => (
-    <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-sm">
-            {isLogin ? (
-                <>
-                    <h2 className="text-3xl font-bold text-center mb-6 text-orange-400">Connexion</h2>
-                    <form onSubmit={handleAuthSubmit} className="space-y-4">
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                            required
-                        />
-                        <div className="relative">
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Mot de passe"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400 pr-10"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
-                            >
-                                {/* Icône d'œil pour montrer/cacher le mot de passe */}
-                                {showPassword ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.75 9.75 0 0 0 5.36-1.65"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-                                )}
-                            </button>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={authLoading}
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold p-3 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            {authLoading ? 'Connexion...' : 'Se connecter'}
-                        </button>
-                        {authError && <p className="text-red-400 text-sm text-center mt-2">{authError}</p>}
-                    </form>
-                    <p className="mt-6 text-center text-sm">
-                        Pas encore de compte ?{' '}
-                        <button onClick={() => { setIsLogin(false); setAuthError(''); }} className="text-orange-400 hover:underline">
-                            Créer un compte
-                        </button>
-                    </p>
-                </>
-            ) : (
-                <>
-                    {/* Ajout du logo sur la page d'inscription */}
-                    <div className="flex justify-center mb-6">
-                        <img src="https://placehold.co/150x150/000000/FFFFFF/png?text=TNT+Logo" alt="TNT Logo" className="h-24 w-24 object-contain rounded-full" />
-                    </div>
-                    <h2 className="text-3xl font-bold text-center mb-6 text-orange-400">Créer un compte</h2>
-                    <form onSubmit={handleAuthSubmit} className="space-y-4">
-                        {/* Ajout du champ pour le nom du joueur */}
-                        <input
-                            type="text"
-                            placeholder="Nom du joueur"
-                            value={registerPlayerName}
-                            onChange={(e) => setRegisterPlayerName(e.target.value)}
-                            className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                            required
-                        />
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                            required
-                        />
-                        <div className="relative">
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Mot de passe"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400 pr-10"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
-                            >
-                                {/* Icône d'œil pour montrer/cacher le mot de passe */}
-                                {showPassword ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-eye-off"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.75 9.75 0 0 0 5.36-1.65"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
-                                )}
-                            </button>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={authLoading}
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold p-3 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            {authLoading ? "Inscription..." : "S'inscrire"}
-                        </button>
-                        {authError && <p className="text-red-400 text-sm text-center mt-2">{authError}</p>}
-                    </form>
-                    <p className="mt-6 text-center text-sm">
-                        Déjà un compte ?{' '}
-                        <button onClick={() => { setIsLogin(true); setAuthError(''); }} className="text-orange-400 hover:underline">
-                            Se connecter
-                        </button>
-                    </p>
-                </>
-            )}
-        </div>
-    </div>
-  );
 
-  const Header = () => (
-    <header className="flex flex-col sm:flex-row justify-between items-center bg-gray-900 text-white p-4 shadow-lg sticky top-0 z-10">
-        <h1 className="text-2xl font-bold text-orange-400">Team Challenge</h1>
-        <div className="text-center sm:text-right">
-            <div className="text-lg font-semibold">Bienvenue, <span className="text-orange-400">{playerName}</span> !</div>
-            <div className="text-xs text-gray-400">{user.uid}</div>
-            <button onClick={() => signOut(auth)} className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors">
-                Déconnexion
-            </button>
-        </div>
-    </header>
-  );
-
-  const PlayerDetailsModal = ({ player, onClose }) => {
-    if (!player) return null;
-    const sortedActivities = (player.allActivities || []).sort((a, b) => b.timestamp - a.timestamp);
-
-    const getGroupEmoji = (groupName) => {
-        switch (groupName) {
-            case 'Groupe Rouge': return '🔴';
-            case 'Groupe Bleu': return '�';
-            case 'Groupe Vert': return '🟢';
-            default: return '';
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh] custom-scrollbar">
-                <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-2xl font-bold text-white">Détails de {player.name}</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                    </button>
-                </div>
-                <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="bg-gray-700 p-4 rounded-xl">
-                            <h4 className="font-semibold text-orange-300">Total Hebdomadaire</h4>
-                            <p className="text-white text-xl">{getTotalWeeklyPoints(player).toFixed(1)} points</p>
-                        </div>
-                        <div className="bg-gray-700 p-4 rounded-xl">
-                            <h4 className="font-semibold text-orange-300">Scores par Groupe</h4>
-                            <ul className="text-white">
-                                <li>
-                                    {getGroupEmoji('Groupe Rouge')} Rouge: {getGroupPoints(player, 'Groupe Rouge').toFixed(1)} pts
-                                </li>
-                                <li>
-                                    {getGroupEmoji('Groupe Bleu')} Bleu: {getGroupPoints(player, 'Groupe Bleu').toFixed(1)} pts
-                                </li>
-                                <li>
-                                    {getGroupEmoji('Groupe Vert')} Vert: {getGroupPoints(player, 'Groupe Vert').toFixed(1)} pts
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-orange-300 mb-2">Activités récentes</h4>
-                        {sortedActivities.length > 0 ? (
-                            <ul className="space-y-2 text-white">
-                                {sortedActivities.slice(0, 5).map((activity, index) => (
-                                    <li key={index} className="flex justify-between items-center bg-gray-700 p-3 rounded-lg">
-                                        <div>
-                                            <span className="font-bold">{activity.exercise}</span> - {activity.quantity} {EXERCISES.find(e => e.name === activity.exercise)?.unit}
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-sm font-semibold">{activity.points.toFixed(1)} pts</div>
-                                            <div className="text-xs text-gray-400">{format(new Date(activity.date), 'dd/MM/yyyy')}</div>
-                                        </div>
-                                        {isAdmin && (
-                                            <button
-                                                onClick={() => handleOpenDeleteConfirmation(activity)}
-                                                className="text-red-400 hover:text-red-600 transition-colors ml-2"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                                            </button>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="text-gray-400">Aucune activité enregistrée.</p>
-                        )}
-                    </div>
-                </div>
-                <div className="mt-6 flex justify-end">
-                    <button onClick={onClose} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700 transition-colors">
-                        Fermer
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+  const handleLogout = async () => {
+      try {
+          await signOut(auth);
+      } catch (error) {
+          console.error("Erreur de déconnexion:", error);
+      }
   };
-  
-  const DeleteConfirmationModal = () => (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-            <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression</h3>
-            <p className="text-gray-300 mb-6">
-                Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du {format(new Date(activityToDelete.date), 'dd/MM/yyyy')} ?
-            </p>
-            <div className="flex justify-end space-x-4">
-                <button
-                    onClick={handleCloseDeleteConfirmation}
-                    disabled={deleting}
-                    className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                    Annuler
-                </button>
-                <button
-                    onClick={handleDeleteActivity}
-                    disabled={deleting}
-                    className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                    {deleting ? 'Suppression...' : 'Supprimer'}
-                </button>
-            </div>
-        </div>
-    </div>
-  );
-  
-  const AdminDeleteConfirmationModal = () => (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
-            <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression du joueur</h3>
-            <p className="text-gray-300 mb-6">
-                Êtes-vous sûr de vouloir supprimer définitivement le joueur <span className="font-bold text-orange-400">{playerToDelete?.name}</span> ?
-            </p>
-            <div className="flex justify-end space-x-4">
-                <button
-                    onClick={handleCloseDeletePlayerConfirmation}
-                    disabled={deletingPlayer}
-                    className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                    Annuler
-                </button>
-                <button
-                    onClick={handleDeletePlayer}
-                    disabled={deletingPlayer}
-                    className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
-                >
-                    {deletingPlayer ? 'Suppression...' : 'Supprimer'}
-                </button>
-            </div>
-        </div>
-    </div>
-  );
-
-  const UserManagementPage = () => (
-    <div className="min-h-screen bg-gray-950 text-white p-4">
-        <h2 className="text-3xl font-bold text-center mb-6 text-orange-400">Gestion des utilisateurs</h2>
-        <div className="overflow-x-auto bg-gray-800 rounded-xl shadow-lg mb-6">
-            <table className="min-w-full divide-y divide-gray-700">
-                <thead className="bg-gray-700">
-                    <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                            Nom du joueur
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                            Email
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                            UID
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
-                            Actions
-                        </th>
-                    </tr>
-                </thead>
-                <tbody className="bg-gray-800 divide-y divide-gray-700">
-                    {players.map(player => (
-                        <tr key={player.id} className="hover:bg-gray-700">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{player.name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.email}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{player.id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onClick={() => handleOpenDeletePlayerConfirmation(player)} className="text-red-400 hover:text-red-600 transition-colors">
-                                    Supprimer
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-        <div className="text-center">
-            <button onClick={() => setCurrentPage('MainApp')} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors">
-                Retour à l'application
-            </button>
-        </div>
-    </div>
-  );
-
-  const MainApp = () => (
-    <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8">
-        <h2 className="text-3xl font-bold text-center mb-6 text-orange-400">Classement de la semaine {getWeekNumber(new Date())}</h2>
-        
-        {/* Section d'ajout d'entraînement */}
-        <div className="bg-gray-800 p-6 rounded-2xl shadow-xl mb-8">
-            <h3 className="text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h3>
-            <form onSubmit={(e) => { e.preventDefault(); handleAddTraining(); }} className="space-y-4">
-                <select
-                    value={selectedExercise.id}
-                    onChange={(e) => setSelectedExercise(EXERCISES.find(ex => ex.id === parseInt(e.target.value)))}
-                    className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                >
-                    {EXERCISES.map(ex => (
-                        <option key={ex.id} value={ex.id}>{ex.emoji} {ex.name} ({ex.points} points par {ex.pointsPer} {ex.unit})</option>
-                    ))}
-                </select>
-                <input
-                    type="number"
-                    placeholder={`Quantité en ${selectedExercise.unit}`}
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    required
-                />
-                <button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold p-3 rounded-lg transition-colors">
-                    Enregistrer l'entraînement
-                </button>
-            </form>
-            {message && <p className="mt-4 text-center text-sm font-semibold">{message}</p>}
-        </div>
-
-        {/* Section classement et gestion admin */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-gray-800 p-6 rounded-2xl shadow-xl">
-                <h3 className="text-2xl font-semibold mb-4 text-orange-400">Classement des joueurs</h3>
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-700">
-                        <thead className="bg-gray-700">
-                            <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                    Rang
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                    Nom du joueur
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
-                                    Points
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-gray-800 divide-y divide-gray-700">
-                            {sortedPlayers.map((player, index) => (
-                                <tr key={player.id} className="hover:bg-gray-700 cursor-pointer" onClick={() => handleOpenPlayerDetails(player)}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{index + 1}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{player.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-white">{getTotalWeeklyPoints(player).toFixed(1)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {isAdmin && (
-                <div className="bg-gray-800 p-6 rounded-2xl shadow-xl">
-                    <h3 className="text-2xl font-semibold mb-4 text-orange-400">Administration</h3>
-                    <div className="text-center">
-                        <p className="text-gray-300 mb-4">Gérer les utilisateurs et leurs activités.</p>
-                        <button onClick={() => setCurrentPage('UserManagement')} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors">
-                            Gérer les utilisateurs
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-        {selectedPlayer && showPlayerDetailsModal && <PlayerDetailsModal player={selectedPlayer} onClose={handleClosePlayerDetails} />}
-        {activityToDelete && showDeleteConfirmation && <DeleteConfirmationModal />}
-    </div>
-  );
 
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
-        <div className="text-xl">Chargement de l'authentification...</div>
-      </div>
-    );
+      return (
+          <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white">
+              <div className="text-xl">Chargement de l'authentification...</div>
+          </div>
+      );
   }
 
+  // Rendu conditionnel des pages
   if (!isLoggedIn) {
-      return <AuthPage />;
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
+            <div className="mb-6 flex flex-col items-center">
+                <img 
+                    src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_79,h_79,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png" 
+                    alt="Logo TNT" 
+                    className="w-20 h-20 mb-2"
+                />
+                <h1 className="text-4xl font-bold text-orange-400">TNT Summer 2025</h1>
+            </div>
+            <div className="w-full max-w-md bg-gray-900 rounded-2xl shadow-xl p-8 border border-orange-500">
+                <h2 className="text-3xl font-bold text-center text-orange-400 mb-6">
+                    {isLogin ? 'Connexion' : 'Créer un compte'}
+                </h2>
+                <form onSubmit={handleAuthSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300">Email</label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300">Mot de passe</label>
+                        <div className="relative mt-1">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                className="block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500 pr-10"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                            >
+                                {showPassword ? '🙈' : '👁️'}
+                            </button>
+                        </div>
+                    </div>
+                    {authError && <p className="text-red-400 text-sm text-center">{authError}</p>}
+                    <button
+                        type="submit"
+                        disabled={authLoading}
+                        className="w-full py-2 px-4 bg-orange-600 text-white font-bold rounded-full shadow-lg hover:bg-orange-700 transition-colors duration-300 disabled:opacity-50"
+                    >
+                        {authLoading ? (isLogin ? 'Connexion...' : 'Création...') : (isLogin ? 'Se connecter' : 'Créer le compte')}
+                    </button>
+                </form>
+                <div className="mt-6 text-center">
+                    <button
+                        onClick={() => setIsLogin(!isLogin)}
+                        className="text-sm text-orange-400 hover:underline"
+                    >
+                        {isLogin ? "Pas de compte ? Créer un compte" : "Déjà un compte ? Se connecter"}
+                    </button>
+                </div>
+            </div>
+        </div>
+      );
   }
 
-  if (currentPage === 'UserManagement' && isAdmin) {
-      return <UserManagementPage />;
+  if (isAdmin && currentPage === 'UserManagement') {
+      return (
+        <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
+            <div className="max-w-4xl mx-auto">
+                <header className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-orange-400 flex items-center">
+                        Gestion des utilisateurs
+                    </h1>
+                    <button
+                        onClick={() => setCurrentPage('MainApp')}
+                        className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300 text-sm sm:text-base"
+                    >
+                        Retour
+                    </button>
+                </header>
+                <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500 overflow-x-auto">
+                    <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Liste des joueurs</h2>
+                    <table className="w-full text-left min-w-[700px]">
+                        <thead>
+                        <tr className="bg-gray-800 text-xs sm:text-sm">
+                            <th className="p-3 rounded-tl-xl">Nom</th>
+                            <th className="p-3">Email</th>
+                            <th className="p-3">ID utilisateur</th>
+                            <th className="p-3 rounded-tr-xl">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {players.map(player => (
+                            <tr key={player.id} className="border-t border-gray-800 hover:bg-gray-800 transition-colors duration-200 text-sm">
+                                <td className="p-3 font-bold">{player.name}</td>
+                                <td className="p-3 text-xs sm:text-sm">{player.email}</td>
+                                <td className="p-3 font-mono text-[10px] sm:text-xs break-all">{player.id}</td>
+                                <td className="p-3">
+                                    <button
+                                        onClick={() => handleOpenDeletePlayerConfirmation(player)}
+                                        className="px-3 py-1 bg-red-600 text-white text-xs sm:text-sm rounded-full shadow-lg hover:bg-red-700 transition-colors"
+                                    >
+                                        Supprimer
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                    {adminMessage && <p className="text-center mt-4 text-sm text-green-400">{adminMessage}</p>}
+                </div>
+
+                {showDeleteConfirmationAdmin && playerToDelete && (
+                    <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
+                        <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
+                            <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression du joueur</h3>
+                            <p className="text-gray-300 mb-6">
+                                Êtes-vous sûr de vouloir supprimer le joueur <span className="font-bold text-orange-400">{playerToDelete.name}</span> et toutes ses activités ? Cette action est irréversible.
+                            </p>
+                            <div className="flex justify-end space-x-4">
+                                <button
+                                    onClick={handleCloseDeletePlayerConfirmation}
+                                    disabled={deletingPlayer}
+                                    className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    onClick={handleDeletePlayer}
+                                    disabled={deletingPlayer}
+                                    className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                                >
+                                    {deletingPlayer ? 'Suppression...' : 'Supprimer'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+      );
   }
 
+  // Rendu de l'application principale
   return (
-    <>
-      <Header />
-      <MainApp />
-      {showDeleteConfirmationAdmin && <AdminDeleteConfirmationModal />}
-    </>
+    <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
+        <div className="max-w-4xl mx-auto">
+            <header className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-2">
+                     <img 
+                        src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_79,h_79,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png" 
+                        alt="Logo" 
+                        className="w-10 h-10 sm:w-12 sm:h-12"
+                    />
+                    <h1 className="text-3xl sm:text-4xl font-bold text-orange-400">TNT Summer 2025</h1>
+                    <span className="text-2xl">🔥</span>
+                </div>
+                <div className="relative">
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300 text-sm sm:text-base"
+                    >
+                        Menu
+                    </button>
+                    {isMenuOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl z-10">
+                            {isAdmin && (
+                                <button
+                                    onClick={() => {
+                                        setCurrentPage('UserManagement');
+                                        setIsMenuOpen(false);
+                                    }}
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-t-lg"
+                                >
+                                    Gérer les utilisateurs
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    handleLogout();
+                                    setIsMenuOpen(false);
+                                }}
+                                className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 rounded-b-lg"
+                            >
+                                Déconnexion
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </header>
+
+            <p className="text-gray-400 text-center mb-6">Bienvenue, <span className="font-bold text-orange-400">{playerName}</span> !</p>
+
+            {errorMessage && (
+                <div className="bg-red-800 text-white p-3 rounded-lg mb-4 text-center">
+                    {errorMessage}
+                </div>
+            )}
+
+            <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+                <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Ajouter un entraînement</h2>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="exercise" className="block text-sm font-medium text-gray-300">Exercice</label>
+                        <select
+                            id="exercise"
+                            value={selectedExercise.id}
+                            onChange={(e) => setSelectedExercise(EXERCISES.find(ex => ex.id === parseInt(e.target.value)))}
+                            className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                        >
+                            {EXERCISES.map(ex => (
+                                <option key={ex.id} value={ex.id}>
+                                    {ex.emoji} {ex.name} ({ex.points} pts / {ex.pointsPer} {ex.unit})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="quantity" className="block text-sm font-medium text-gray-300">Quantité ({selectedExercise.unit})</label>
+                        <input
+                            type="number"
+                            id="quantity"
+                            value={quantity}
+                            onChange={(e) => setQuantity(e.target.value)}
+                            className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
+                            placeholder="Ex: 30"
+                        />
+                    </div>
+                    <button
+                        onClick={handleAddTraining}
+                        disabled={loading}
+                        className="w-full py-2 px-4 bg-orange-600 text-white font-bold rounded-full shadow-lg hover:bg-orange-700 transition-colors duration-300 disabled:opacity-50"
+                    >
+                        {loading ? 'Ajout...' : 'Ajouter'}
+                    </button>
+                </div>
+                {message && <p className="mt-4 text-center text-sm text-green-400">{message}</p>}
+            </div>
+
+            <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+                <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Classement de la semaine</h2>
+                <div className="space-y-4">
+                    {sortedPlayers.length > 0 ? sortedPlayers.map((player, index) => (
+                        <div
+                            key={player.id}
+                            className="flex items-center justify-between bg-gray-800 p-3 rounded-xl shadow-md cursor-pointer hover:bg-gray-700 transition-colors duration-200"
+                            onClick={() => handleOpenPlayerDetails(player)}
+                        >
+                            <div className="flex items-center space-x-3">
+                                <span className="text-lg font-bold text-white w-6 text-center">
+                                    {index === 0 && '🥇'}
+                                    {index === 1 && '🥈'}
+                                    {index === 2 && '🥉'}
+                                    {index > 2 && `${index + 1}.`}
+                                </span>
+                                <span className="font-semibold text-white">{player.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-2 text-orange-400 font-bold">
+                                <span>
+                                    {getTotalWeeklyPoints(player).toFixed(1)} pts / 200
+                                </span>
+                            </div>
+                        </div>
+                    )) : (
+                        <p className="text-center text-gray-500">Aucun joueur trouvé. Commencez par ajouter un entraînement.</p>
+                    )}
+                </div>
+            </div>
+
+            <div className="mt-8 text-center text-sm text-gray-400 space-y-2">
+                <p>
+                    <a href="https://youtu.be/zqjuMftQsmE?si=Q5QzJOqJaMY7A_lg" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                        Regarder la vidéo explicative
+                    </a>
+                </p>
+                <p>
+                    <a href="https://drive.google.com/file/d/1Jecrx07HKmLjtAmxVasS8sPYQtIDejS0/view?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                        Voir le tableau des points
+                    </a>
+                </p>
+            </div>
+        </div>
+
+        {showPlayerDetailsModal && selectedPlayer && (
+            <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
+                <div className="bg-gray-800 p-6 rounded-2xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-2xl font-bold text-orange-400">{selectedPlayer.name}</h3>
+                        <button onClick={handleClosePlayerDetails} className="text-gray-400 hover:text-white text-3xl">&times;</button>
+                    </div>
+                    <div className="space-y-4 mb-6">
+                        <ProgressBarGauge
+                            points={getTotalWeeklyPoints(selectedPlayer)}
+                            goal={200}
+                            title="Points de la semaine"
+                            showEmojis={true}
+                        />
+                        <div className="flex justify-between space-x-2">
+                            <ProgressBarGauge
+                                points={getGroupPoints(selectedPlayer, 'Groupe Rouge')}
+                                goal={100}
+                                title="Groupe Rouge 🔴"
+                            />
+                            <ProgressBarGauge
+                                points={getGroupPoints(selectedPlayer, 'Groupe Bleu')}
+                                goal={100}
+                                title="Groupe Bleu 🔵"
+                            />
+                            <ProgressBarGauge
+                                points={getGroupPoints(selectedPlayer, 'Groupe Vert')}
+                                goal={100}
+                                title="Groupe Vert 🟢"
+                            />
+                        </div>
+                    </div>
+                    <h4 className="text-xl font-semibold mb-3 text-white">Activités récentes</h4>
+                    {selectedPlayer.allActivities && selectedPlayer.allActivities.length > 0 ? (
+                        <ul className="space-y-2">
+                            {selectedPlayer.allActivities.sort((a, b) => b.timestamp - a.timestamp).map((activity, index) => (
+                                <li key={index} className="bg-gray-900 p-3 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <span className="font-semibold text-orange-400">{activity.emoji} {activity.exercise}</span>
+                                        <p className="text-sm text-gray-400">{activity.quantity} {EXERCISES.find(ex => ex.name === activity.exercise)?.unit} - {activity.points.toFixed(1)} pts</p>
+                                        <p className="text-xs text-gray-500">{activity.date}</p>
+                                    </div>
+                                    {user && user.uid === selectedPlayer.id && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOpenDeleteConfirmation(activity);
+                                            }}
+                                            className="text-red-500 hover:text-red-400 transition-colors"
+                                        >
+                                            &times;
+                                        </button>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-gray-500 text-center">Aucune activité enregistrée.</p>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {showDeleteConfirmation && activityToDelete && (
+            <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
+                <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-lg">
+                    <h3 className="text-2xl font-bold text-white mb-4">Confirmer la suppression de l'activité</h3>
+                    <p className="text-gray-300 mb-6">
+                        Êtes-vous sûr de vouloir supprimer l'activité <span className="font-bold text-orange-400">{activityToDelete.exercise}</span> du {activityToDelete.date} ?
+                    </p>
+                    <div className="flex justify-end space-x-4">
+                        <button
+                            onClick={handleCloseDeleteConfirmation}
+                            disabled={deleting}
+                            className="px-6 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors disabled:opacity-50"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            onClick={handleDeleteActivity}
+                            disabled={deleting}
+                            className="px-6 py-2 bg-red-600 text-white font-bold rounded-full shadow-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                        >
+                            {deleting ? 'Suppression...' : 'Supprimer'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+    </div>
   );
 }
 
