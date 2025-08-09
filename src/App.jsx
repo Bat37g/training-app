@@ -159,6 +159,7 @@ function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // État pour afficher/masquer le mot de passe
 
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -454,7 +455,15 @@ function App() {
   // Rendu conditionnel des pages
   if (!isLoggedIn) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white font-sans p-4">
+            <div className="mb-6 flex flex-col items-center">
+                <img 
+                    src="https://static.wixstatic.com/media/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png/v1/fill/w_79,h_79,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/613e2c_49bfb0765aa44b0b8211af156607e247~mv2.png" 
+                    alt="Logo TNT" 
+                    className="w-20 h-20 mb-2"
+                />
+                <h1 className="text-4xl font-bold text-orange-400">TNT Summer 2025</h1>
+            </div>
             <div className="w-full max-w-md bg-gray-900 rounded-2xl shadow-xl p-8 border border-orange-500">
                 <h2 className="text-3xl font-bold text-center text-orange-400 mb-6">
                     {isLogin ? 'Connexion' : 'Créer un compte'}
@@ -472,13 +481,22 @@ function App() {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-300">Mot de passe</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            className="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                        />
+                        <div className="relative mt-1">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                className="block w-full rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500 pr-10"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                            >
+                                {showPassword ? '🙈' : '👁️'}
+                            </button>
+                        </div>
                     </div>
                     {authError && <p className="text-red-400 text-sm text-center">{authError}</p>}
                     <button
@@ -696,7 +714,7 @@ function App() {
                             </div>
                             <div className="flex items-center space-x-2 text-orange-400 font-bold">
                                 <span>
-                                    {getTotalWeeklyPoints(player).toFixed(1)} pts
+                                    {getTotalWeeklyPoints(player).toFixed(1)} pts / 200
                                 </span>
                             </div>
                         </div>
