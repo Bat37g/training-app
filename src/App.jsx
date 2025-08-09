@@ -6,11 +6,19 @@ import { format, startOfWeek, endOfWeek, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 // Configuration Firebase
-// Les variables globales __app_id, __firebase_config, __initial_auth_token sont fournies par l'environnement
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+// J'ai réintégré la configuration pour assurer que l'application fonctionne
+// correctement et contourner les erreurs d'API Key.
+const firebaseConfig = {
+  apiKey: "AIzaSyA8yYgSZrftifnWBklIz1UVOwBRO65vj9k",
+  authDomain: "tnt-training.firebaseapp.com",
+  projectId: "tnt-training",
+  storageBucket: "tnt-training.firebasestorage.app",
+  messagingSenderId: "791420900421",
+  appId: "1:791420900421:web:deb9dffb55ef1b3febff2c",
+  measurementId: "G-B74Q9T0KMB"
+};
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : '';
-
 
 let app;
 let db;
@@ -589,11 +597,6 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
                                     points={getGroupPoints(selectedPlayer, 'Groupe Bleu')}
                                     goal={100}
                                     title="Groupe Bleu 🔵"
-                                />
-                                <ProgressBarGauge
-                                    points={getGroupPoints(selectedPlayer, 'Groupe Vert')}
-                                    goal={100}
-                                    title="Groupe Vert 🟢"
                                 />
                             </div>
                         </div>
