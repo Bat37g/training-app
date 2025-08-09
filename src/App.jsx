@@ -167,6 +167,9 @@ function App() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [updatedPlayerName, setUpdatedPlayerName] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
+  
+  // État pour la page d'historique
+  const [historicalData, setHistoricalData] = useState([]);
 
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -494,7 +497,30 @@ function App() {
         setLoading(false);
     }
   };
+  
+  // Fonction pour obtenir l'historique des scores hebdomadaires
+  const getHistoricalWeeklyPoints = () => {
+      const allWeeks = new Set();
+      players.forEach(player => {
+          Object.keys(player.weeklyPoints || {}).forEach(week => allWeeks.add(parseInt(week)));
+      });
 
+      const sortedWeeks = Array.from(allWeeks).sort((a, b) => b - a);
+
+      const historicalScores = sortedWeeks.map(week => {
+          const weeklyPlayers = players.map(player => ({
+              name: player.name,
+              points: player.weeklyPoints?.[week] || 0
+          })).sort((a, b) => b.points - a.points);
+
+          return {
+              week: week,
+              players: weeklyPlayers
+          };
+      });
+
+      return historicalScores.filter(weekData => weekData.players.some(p => p.points > 0));
+  };
 
   if (loading) {
       return (
@@ -742,6 +768,54 @@ function App() {
     );
 }
 
+// Rendu de la page d'historique
+if (isLoggedIn && currentPage === 'HistoryPage') {
+    const historicalScores = getHistoricalWeeklyPoints();
+    return (
+        <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
+            <div className="max-w-4xl mx-auto">
+                <header className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl sm:text-4xl font-bold text-orange-400">Historique des classements</h1>
+                    <button
+                        onClick={() => setCurrentPage('MainApp')}
+                        className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300 text-sm sm:text-base"
+                    >
+                        Retour
+                    </button>
+                </header>
+                
+                {historicalScores.length > 0 ? (
+                    historicalScores.map(({ week, players }) => (
+                        <div key={week} className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 mb-8 border border-orange-500">
+                            <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-orange-400">Semaine {week}</h2>
+                            <ul className="space-y-4">
+                                {players.map((player, index) => (
+                                    player.points > 0 && (
+                                        <li key={index} className="flex items-center justify-between bg-gray-800 p-3 rounded-xl shadow-md">
+                                            <div className="flex items-center space-x-3">
+                                                <span className="text-lg font-bold text-white w-6 text-center">
+                                                    {index === 0 && '🥇'}
+                                                    {index === 1 && '🥈'}
+                                                    {index === 2 && '🥉'}
+                                                    {index > 2 && `${index + 1}.`}
+                                                </span>
+                                                <span className="font-semibold text-white">{player.name}</span>
+                                            </div>
+                                            <span className="text-orange-400 font-bold">{player.points.toFixed(1)} pts</span>
+                                        </li>
+                                    )
+                                ))}
+                            </ul>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-center text-gray-500">Aucun historique disponible.</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
   // Rendu de l'application principale
   return (
     <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
@@ -874,6 +948,14 @@ function App() {
                     )) : (
                         <p className="text-center text-gray-500">Aucun joueur trouvé. Commencez par ajouter un entraînement.</p>
                     )}
+                </div>
+                <div className="mt-4 text-center">
+                    <button
+                        onClick={() => setCurrentPage('HistoryPage')}
+                        className="text-orange-400 font-semibold hover:underline text-xl sm:text-2xl"
+                    >
+                        Historique
+                    </button>
                 </div>
             </div>
 
