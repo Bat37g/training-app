@@ -297,7 +297,7 @@ function App() {
             const newPlayer = {
                 name: playerName,
                 email: user.email,
-                dailyPoints: { [today]: pointsEarned },
+                dailyPoints: {},
                 weeklyPoints: { [currentWeek]: pointsEarned },
                 groupPoints: { [currentWeek]: { [groupName]: pointsEarned } },
                 allActivities: [newTraining],
@@ -500,15 +500,16 @@ function App() {
   
   // Fonction pour obtenir l'historique des scores hebdomadaires
   const getHistoricalWeeklyPoints = () => {
+      const filteredPlayers = players.filter(player => player.email !== ADMIN_EMAIL);
       const allWeeks = new Set();
-      players.forEach(player => {
+      filteredPlayers.forEach(player => {
           Object.keys(player.weeklyPoints || {}).forEach(week => allWeeks.add(parseInt(week)));
       });
 
       const sortedWeeks = Array.from(allWeeks).sort((a, b) => b - a);
 
       const historicalScores = sortedWeeks.map(week => {
-          const weeklyPlayers = players.map(player => ({
+          const weeklyPlayers = filteredPlayers.map(player => ({
               name: player.name,
               points: player.weeklyPoints?.[week] || 0
           })).sort((a, b) => b.points - a.points);
