@@ -418,7 +418,10 @@ const MainApp = ({ user, handleLogout, playerName, setCurrentPage, isAdmin }) =>
     return player.groupPoints?.[currentWeek]?.[groupName] || 0;
   };
 
-  const sortedPlayers = [...players].sort((a, b) => getTotalWeeklyPoints(b) - getTotalWeeklyPoints(a));
+  // Filtrer les joueurs pour exclure l'admin avant de les trier
+  const sortedPlayers = players
+    .filter(player => player.email !== ADMIN_EMAIL)
+    .sort((a, b) => getTotalWeeklyPoints(b) - getTotalWeeklyPoints(a));
 
   const handleOpenModal = () => {
     setQuantity('');
