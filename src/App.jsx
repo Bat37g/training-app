@@ -83,7 +83,7 @@ const getBackgroundColor = (points, goal) => {
     return 'bg-red-500';
 };
 
-const ProgressBarGauge = ({ points, goal, title, showEmojis = false }) => {
+const ProgressBarGauge = ({ points, goal, title, showEmojis = false, barHeightClass = 'h-4' }) => {
     const percentage = Math.min(100, (points / goal) * 100);
     const progressColor = getBackgroundColor(points, goal);
 
@@ -100,7 +100,7 @@ const ProgressBarGauge = ({ points, goal, title, showEmojis = false }) => {
     return (
         <div className="w-full flex flex-col items-center p-2 bg-gray-800 rounded-lg shadow-inner">
             <div className="text-sm font-semibold text-gray-300 mb-1">{title}</div>
-            <div className="relative w-full h-4 bg-gray-700 rounded-full overflow-hidden">
+            <div className={`relative w-full ${barHeightClass} bg-gray-700 rounded-full overflow-hidden`}>
                 <div
                     className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${progressColor}`}
                     style={{ width: `${percentage}%` }}
@@ -141,12 +141,12 @@ function App() {
   const [quantity, setQuantity] = useState('');
   const [message, setMessage] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [selectedPlayerTotalPoints, setSelectedPlayerTotalPoints] = useState(0); // Nouveau state
   const [showPlayerDetailsModal, setShowPlayerDetailsModal] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [totalCumulativePoints, setTotalCumulativePoints] = useState(0);
 
   // État pour la page de gestion des utilisateurs
   const [playerToDelete, setPlayerToDelete] = useState(null);
@@ -162,11 +162,6 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // État pour afficher/masquer le mot de passe
   const [newPlayerName, setNewPlayerName] = useState('');
-
-  // État pour la page de profil
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [updatedPlayerName, setUpdatedPlayerName] = useState('');
-  const [profileMessage, setProfileMessage] = useState('');
 
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
@@ -198,10 +193,6 @@ function App() {
         const playerDoc = await getDoc(playerDocRef);
         if (playerDoc.exists()) {
             setPlayerName(playerDoc.data().name);
-            setUpdatedPlayerName(playerDoc.data().name);
-            // Calculer les points cumulés lors de la connexion
-            const totalPoints = (playerDoc.data().allActivities || []).reduce((sum, activity) => sum + activity.points, 0);
-            setTotalCumulativePoints(totalPoints);
         } else {
             console.warn("Nom du joueur non trouvé pour l'utilisateur connecté.");
             setPlayerName("Inconnu");
@@ -289,19 +280,17 @@ function App() {
             const allActivities = [...(data.allActivities || []), newTraining];
             await updateDoc(playerDocRef, { dailyPoints, weeklyPoints, allActivities, name: playerName, groupPoints });
             console.log("Document mis à jour pour le joueur :", playerName);
-            setTotalCumulativePoints(prevPoints => prevPoints + pointsEarned); // Mise à jour des points cumulés
         } else {
             const newPlayer = {
                 name: playerName,
                 email: user.email,
-                dailyPoints: { [today]: pointsEarned },
+                dailyPoints: {},
                 weeklyPoints: { [currentWeek]: pointsEarned },
                 groupPoints: { [currentWeek]: { [groupName]: pointsEarned } },
                 allActivities: [newTraining],
             };
             await setDoc(playerDocRef, newPlayer);
             console.log("Nouveau document créé pour le joueur :", playerName);
-            setTotalCumulativePoints(pointsEarned); // Mise à jour des points cumulés
         }
         setMessage("Entraînement ajouté avec succès !");
         setQuantity('');
@@ -361,18 +350,24 @@ function App() {
       return player.groupPoints?.[currentWeek]?.[groupName] || 0;
   };
 
+  const getTotalCumulativePoints = (player) => {
+      return (player.allActivities || []).reduce((sum, activity) => sum + activity.points, 0);
+  };
+
   const sortedPlayers = players
       .filter(player => player.email !== ADMIN_EMAIL)
       .sort((a, b) => getTotalWeeklyPoints(b) - getTotalWeeklyPoints(a));
 
   const handleOpenPlayerDetails = (player) => {
       setSelectedPlayer(player);
+      setSelectedPlayerTotalPoints(getTotalCumulativePoints(player));
       setShowPlayerDetailsModal(true);
   };
 
   const handleClosePlayerDetails = () => {
       setShowPlayerDetailsModal(false);
       setSelectedPlayer(null);
+      setSelectedPlayerTotalPoints(0);
   };
 
   const handleOpenDeleteConfirmation = (activity) => {
@@ -448,8 +443,6 @@ function App() {
         setIsLoggedIn(true);
         setUser(userCredential.user);
         setPlayerName(isLogin ? (await getDoc(doc(db, `artifacts/${appId}/public/data/team_challenge`, userCredential.user.uid))).data().name : newPlayerName);
-        setUpdatedPlayerName(isLogin ? (await getDoc(doc(db, `artifacts/${appId}/public/data/team_challenge`, userCredential.user.uid))).data().name : newPlayerName);
-
     } catch (err) {
         console.error("Erreur d'authentification:", err);
         setAuthError("Erreur d'authentification. Veuillez vérifier vos identifiants ou réessayer.");
@@ -464,35 +457,6 @@ function App() {
       } catch (error) {
           console.error("Erreur de déconnexion:", error);
       }
-  };
-
-  // Fonctions de la page de profil
-  const handleUpdatePlayerName = async () => {
-    if (!updatedPlayerName.trim()) {
-        setProfileMessage("Le nom du joueur ne peut pas être vide.");
-        return;
-    }
-
-    if (updatedPlayerName === playerName) {
-        setIsEditingName(false);
-        setProfileMessage("Le nom n'a pas été modifié.");
-        return;
-    }
-
-    setLoading(true);
-    setProfileMessage('');
-    try {
-        const playerDocRef = doc(db, `artifacts/${appId}/public/data/team_challenge`, user.uid);
-        await updateDoc(playerDocRef, { name: updatedPlayerName });
-        setPlayerName(updatedPlayerName);
-        setIsEditingName(false);
-        setProfileMessage("Nom mis à jour avec succès !");
-    } catch (e) {
-        console.error("Erreur lors de la mise à jour du nom:", e);
-        setProfileMessage("Erreur lors de la mise à jour du nom. Veuillez réessayer.");
-    } finally {
-        setLoading(false);
-    }
   };
 
 
@@ -662,86 +626,6 @@ function App() {
       );
   }
 
-  // Rendu de la page de profil
-  if (isLoggedIn && currentPage === 'ProfilePage') {
-    return (
-        <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
-            <div className="max-w-4xl mx-auto">
-                <header className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl sm:text-4xl font-bold text-orange-400 flex items-center">
-                        Mon Profil
-                    </h1>
-                    <button
-                        onClick={() => setCurrentPage('MainApp')}
-                        className="px-4 py-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 transition-colors duration-300 text-sm sm:text-base"
-                    >
-                        Retour
-                    </button>
-                </header>
-                <div className="bg-gray-900 rounded-2xl shadow-lg p-4 sm:p-6 border border-orange-500">
-                    <div className="space-y-4">
-                        <div>
-                            <h2 className="text-xl sm:text-2xl font-semibold mb-2 text-orange-400">Informations du joueur</h2>
-                            <p className="text-gray-300 flex justify-between items-center mb-2">
-                                <span className="font-semibold">Adresse e-mail :</span>
-                                <span className="font-mono text-sm">{user.email}</span>
-                            </p>
-                            <p className="text-gray-300 flex justify-between items-center">
-                                <span className="font-semibold">Nom de joueur :</span>
-                                {isEditingName ? (
-                                    <div className="flex items-center space-x-2">
-                                        <input
-                                            type="text"
-                                            value={updatedPlayerName}
-                                            onChange={(e) => setUpdatedPlayerName(e.target.value)}
-                                            className="w-32 sm:w-48 rounded-md bg-gray-700 border-gray-600 text-white shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                                        />
-                                        <button
-                                            onClick={handleUpdatePlayerName}
-                                            disabled={loading}
-                                            className="px-3 py-1 bg-green-600 text-white text-xs sm:text-sm rounded-full hover:bg-green-700 transition-colors disabled:opacity-50"
-                                        >
-                                            {loading ? 'Sauvegarde...' : 'Sauvegarder'}
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setIsEditingName(false);
-                                                setUpdatedPlayerName(playerName);
-                                                setProfileMessage('');
-                                            }}
-                                            className="px-3 py-1 bg-red-600 text-white text-xs sm:text-sm rounded-full hover:bg-red-700 transition-colors"
-                                        >
-                                            Annuler
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center space-x-2">
-                                        <span className="font-bold text-orange-400">{playerName}</span>
-                                        <button
-                                            onClick={() => setIsEditingName(true)}
-                                            className="text-xs text-orange-400 hover:underline"
-                                        >
-                                            Modifier
-                                        </button>
-                                    </div>
-                                )}
-                            </p>
-                        </div>
-                        {profileMessage && <p className="text-center mt-4 text-sm text-green-400">{profileMessage}</p>}
-                    </div>
-                    <div className="mt-6 border-t border-gray-800 pt-4">
-                        <h2 className="text-xl sm:text-2xl font-semibold mb-2 text-orange-400">Statistiques</h2>
-                        <p className="text-gray-300 flex justify-between items-center">
-                            <span className="font-semibold">Points cumulés depuis l'inscription :</span>
-                            <span className="font-bold text-orange-400 text-lg">{totalCumulativePoints.toFixed(1)} pts</span>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
   // Rendu de l'application principale
   return (
     <div className="bg-gray-950 text-white min-h-screen p-4 sm:p-8 font-sans overflow-x-hidden">
@@ -765,22 +649,13 @@ function App() {
                     </button>
                     {isMenuOpen && (
                         <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl z-10">
-                            <button
-                                onClick={() => {
-                                    setCurrentPage('ProfilePage');
-                                    setIsMenuOpen(false);
-                                }}
-                                className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-t-lg"
-                            >
-                                Mon Profil
-                            </button>
                             {isAdmin && (
                                 <button
                                     onClick={() => {
                                         setCurrentPage('UserManagement');
                                         setIsMenuOpen(false);
                                     }}
-                                    className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+                                    className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-t-lg"
                                 >
                                     Gérer les utilisateurs
                                 </button>
@@ -895,7 +770,12 @@ function App() {
             <div className="fixed inset-0 bg-gray-950 bg-opacity-75 flex items-center justify-center p-4 z-50">
                 <div className="bg-gray-800 p-6 rounded-2xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-2xl font-bold text-orange-400">{selectedPlayer.name}</h3>
+                        <div className="flex flex-col">
+                            <h3 className="text-2xl font-bold text-orange-400">{selectedPlayer.name}</h3>
+                            <p className="text-sm text-gray-400 mt-1">
+                                Points cumulés : <span className="font-bold text-orange-400">{selectedPlayerTotalPoints.toFixed(1)}</span>
+                            </p>
+                        </div>
                         <button onClick={handleClosePlayerDetails} className="text-gray-400 hover:text-white text-3xl">&times;</button>
                     </div>
                     <div className="space-y-4 mb-6">
@@ -904,6 +784,7 @@ function App() {
                             goal={200}
                             title="Points de la semaine"
                             showEmojis={true}
+                            barHeightClass="h-5"
                         />
                         <div className="flex justify-between space-x-2">
                             <ProgressBarGauge
